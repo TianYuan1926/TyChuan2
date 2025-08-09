@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>交易日志 · 第6步 账号冻结/注销</title>
+  <title>交易日志 · 第7步 异常登录提醒</title>
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
@@ -30,6 +30,9 @@
         <div id="captcha-login" class="h-captcha" data-sitekey=""></div>
         <button type="submit" id="login-btn" class="primary">登录</button>
       </form>
+      <div class="row gap">
+        <button id="btn-magic" class="ghost small">用邮箱链接登录</button>
+      </div>
     </div>
 
     <div id="tab-register" class="tabpane">
@@ -60,15 +63,25 @@
       <h2>交易</h2>
       <div class="row gap">
         <span id="user-email" class="muted"></span>
-        <button id="btn-settings" class="ghost">账户设置</button>
+        <button id="btn-notify" class="ghost">🔔 通知 <span id="notify-badge" class="badge hidden"></span></button>
         <button id="logout-btn">退出登录</button>
       </div>
     </div>
 
-    <div id="verify-banner" class="warn hidden">
-      你的邮箱还未验证。请到邮箱点击确认链接。
-      <button id="resend-btn" class="ghost small">重发验证邮件</button>
-      <span id="resend-tip" class="muted small"></span>
+    <div id="notify-panel" class="card hidden" style="margin-top:8px">
+      <div class="row between">
+        <strong>通知中心</strong>
+        <div class="row gap">
+          <button id="btn-mark-all" class="ghost small">全部已读</button>
+          <button id="btn-close-panel" class="ghost small">关闭</button>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-top:8px">
+        <table id="notify-table">
+          <thead><tr><th>时间</th><th>类型</th><th>标题</th><th>内容</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="notify-tbody"></tbody>
+        </table>
+      </div>
     </div>
 
     <form id="trade-form" class="grid grid-3">
@@ -82,27 +95,6 @@
       <label class="span-3">备注<textarea id="notes" rows="2"></textarea></label>
       <button type="submit" id="save-btn" class="primary">保存记录</button>
     </form>
-
-    <!-- 账户设置弹窗 -->
-    <dialog id="settings-dialog">
-      <form method="dialog" class="dialog-form">
-        <h3>账户设置</h3>
-        <div class="muted small" id="acct-status"></div>
-        <div class="grid grid-2">
-          <label>为安全起见，请输入当前密码确认：
-            <input type="password" id="confirm-password" placeholder="当前密码" required />
-          </label>
-          <label>备注（可选）：
-            <input type="text" id="confirm-reason" placeholder="例如：长时间不用 / 遗失设备等" />
-          </label>
-        </div>
-        <div class="row gap end">
-          <button value="cancel">取消</button>
-          <button id="btn-suspend" class="ghost">冻结账号（可恢复）</button>
-          <button id="btn-delete" class="primary">注销账号（软删除）</button>
-        </div>
-      </form>
-    </dialog>
   </section>
 
   <footer class="footer">

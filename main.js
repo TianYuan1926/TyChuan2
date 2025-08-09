@@ -30,7 +30,27 @@ function renderOne(id){
 }
 function renderCaptchas(){ ['captcha-login','captcha-register','captcha-forgot'].forEach(renderOne); }
 
-// 登录/注册/忘记密码（简化版）
+// ===== 指纹生成（本地稳定） =====
+function genFingerprint(){
+  const key = 'tj_device_fp';
+  let fp = localStorage.getItem(key);
+  if(!fp){
+    const seed = [
+      navigator.userAgent||'',
+      navigator.platform||'',
+      navigator.language||'',
+      Math.random().toString(36).slice(2)
+    ].join('|');
+    // 简单hash
+    let h=0; for(let i=0;i<seed.length;i++){ h=((h<<5)-h)+seed.charCodeAt(i); h|=0; }
+    fp = 'fp_'+Math.abs(h);
+    localStorage.setItem(key, fp);
+  }
+  return fp;
+}
+function deviceName(){ return (navigator.userAgent||'').slice(0,80); }
+
+// ===== 登录流程 =====
 $("#login-form").addEventListener("submit", async (e)=>{
   e.preventDefault();
   let token=hLoaded? window.hcaptcha.getResponse(widgetIds['captcha-login']):'';
@@ -39,30 +59,28 @@ $("#login-form").addEventListener("submit", async (e)=>{
   const password=$("#login-password").value;
   const { error } = await supabase.auth.signInWithPassword({ email, password, options:{ captchaToken: token }});
   if(error) return say('登录失败：'+error.message, false);
-  say('登录成功'); boot();
+  say('登录成功'); await afterLogin(); boot();
 });
-$("#register-form").addEventListener("submit", async (e)=>{
-  e.preventDefault();
-  let token=hLoaded? window.hcaptcha.getResponse(widgetIds['captcha-register']):'';
-  if(!token) return say('请先完成验证码', false);
-  const email=$("#reg-email").value.trim();
-  const p1=$("#reg-password").value, p2=$("#reg-password2").value;
-  if(p1!==p2) return say('两次密码不一致', false);
+
+$("#btn-magic").addEventListener("click", async ()=>{
+  const email = prompt("输入邮箱（将发送登录链接）");
+  if(!email) return;
   const redirectTo=location.origin+location.pathname;
-  const { error } = await supabase.auth.signUp({ email, password:p1, options:{ emailRedirectTo: redirectTo, captchaToken: token }});
-  if(error) return say('注册失败：'+error.message, false);
-  say('注册成功。请到邮箱完成验证后再登录。');
-});
-$("#forgot-form").addEventListener("submit", async (e)=>{
-  e.preventDefault();
-  let token=hLoaded? window.hcaptcha.getResponse(widgetIds['captcha-forgot']):'';
-  if(!token) return say('请先完成验证码', false);
-  const email=$("#forgot-email").value.trim();
-  const redirectTo=location.origin+location.pathname;
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo, captchaToken: token });
+  const { error } = await supabase.auth.signInWithOtp({ email, options:{ emailRedirectTo: redirectTo } });
   if(error) return say('发送失败：'+error.message, false);
-  say('已发送重置邮件，请查收。');
+  say('已发送登录链接，请查收');
 });
+
+// 登录后调用：记录指纹并拉取通知
+async function afterLogin(){
+  try{
+    const fp = genFingerprint();
+    const dev = deviceName();
+    // 无外部API：IP 留空字符串
+    await supabase.rpc('record_login', { p_fingerprint: fp, p_device: dev, p_ip: '' });
+  }catch(e){ /*ignore*/ }
+  await refreshNotifications();
+}
 
 // 应用
 async function boot(){
@@ -71,14 +89,42 @@ async function boot(){
     $("#auth-section").classList.add("hidden");
     $("#app-section").classList.remove("hidden");
     $("#user-email").textContent = user.email||'';
-    const unverified = !user.email_confirmed_at;
-    $("#verify-banner").classList.toggle("hidden", !unverified);
+    await refreshNotifications();
   }else{
     $("#app-section").classList.add("hidden");
     $("#auth-section").classList.remove("hidden");
   }
 }
 boot();
+
+// 通知中心
+async function refreshNotifications(){
+  const badge=$("#notify-badge");
+  const panel=$("#notify-panel");
+  const tbody=$("#notify-tbody");
+  const { data, error } = await supabase.rpc('get_notifications', { p_limit: 50 });
+  if(error){ say('加载通知失败：'+error.message, false); return; }
+  const unread = (data||[]).filter(n=>!n.read_at).length;
+  if(unread>0){ badge.textContent=unread; badge.classList.remove('hidden'); } else { badge.classList.add('hidden'); }
+  tbody.innerHTML='';
+  (data||[]).forEach(n=>{
+    const tr=document.createElement('tr');
+    const st = n.read_at? '已读':'未读';
+    tr.innerHTML = `<td>${new Date(n.created_at).toLocaleString()}</td>
+      <td>${n.type}</td><td>${n.title}</td><td>${n.body||''}</td><td>${st}</td>
+      <td>${n.read_at? '' : '<button class="ghost small" data-id="'+n.id+'">标记已读</button>'}</td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('button[data-id]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      await supabase.rpc('mark_notification_read', { p_id: btn.getAttribute('data-id') });
+      await refreshNotifications();
+    });
+  });
+}
+$("#btn-notify").addEventListener("click", ()=>{ $("#notify-panel").classList.toggle('hidden'); });
+$("#btn-close-panel").addEventListener("click", ()=>{ $("#notify-panel").classList.add('hidden'); });
+$("#btn-mark-all").addEventListener("click", async ()=>{ await supabase.rpc('mark_all_read'); await refreshNotifications(); });
 
 // 交易表单（示例）
 function recalc(){ const q=parseFloat($("#qty").value)||0, p=parseFloat($("#price").value)||0, f=parseFloat($("#fee").value)||0; $("#amount").value=(q*p+f)||''; }
@@ -101,47 +147,3 @@ $("#trade-form").addEventListener("submit", async (e)=>{
 });
 
 $("#logout-btn").addEventListener("click", async ()=>{ await supabase.auth.signOut(); location.reload(); });
-
-// 账户设置弹窗
-const dlg=$("#settings-dialog");
-$("#btn-settings").addEventListener("click", async ()=>{
-  const { data:{ user } } = await supabase.auth.getUser();
-  if(!user) return;
-  // 拉取状态
-  const { data: prof } = await supabase.from('profiles').select('status').eq('id', user.id).maybeSingle();
-  const st = prof?.status || 'active';
-  $("#acct-status").textContent = `当前状态：${st}`;
-  dlg.showModal();
-});
-
-async function reauth(password){
-  const { data:{ user } } = await supabase.auth.getUser();
-  if(!user?.email) throw new Error('当前仅支持邮箱账号确认');
-  const { error } = await supabase.auth.signInWithPassword({ email: user.email, password });
-  if(error) throw new Error('密码不正确');
-}
-
-$("#btn-suspend").addEventListener("click", async (e)=>{
-  e.preventDefault();
-  try{
-    const pw=$("#confirm-password").value; if(!pw) return say('请输入当前密码', false);
-    await reauth(pw);
-    const reason=$("#confirm-reason").value||'';
-    const { error } = await supabase.rpc('account_suspend', { reason });
-    if(error) throw error;
-    say('账号已冻结（可恢复）'); dlg.close(); await supabase.auth.signOut(); location.reload();
-  }catch(err){ say(err.message||'冻结失败', false); }
-});
-
-$("#btn-delete").addEventListener("click", async (e)=>{
-  e.preventDefault();
-  if(!confirm('确定要注销账号？这是软删除，可联系管理员恢复。')) return;
-  try{
-    const pw=$("#confirm-password").value; if(!pw) return say('请输入当前密码', false);
-    await reauth(pw);
-    const reason=$("#confirm-reason").value||'';
-    const { error } = await supabase.rpc('account_delete', { reason });
-    if(error) throw error;
-    say('账号已注销（软删除）'); dlg.close(); await supabase.auth.signOut(); location.reload();
-  }catch(err){ say(err.message||'注销失败', false); }
-});
