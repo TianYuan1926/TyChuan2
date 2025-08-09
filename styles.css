@@ -1,29 +1,16 @@
 :root{--bg:#0b0f14;--fg:#e6edf3;--muted:#9aa4b2;--card:#121822;--acc:#4caf50;--err:#e5534b}
 *{box-sizing:border-box}
 body{margin:0;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--fg)}
-h1,h2{margin:0 0 12px}
 .header,.footer{max-width:1100px;margin:0 auto 12px}
 .card{background:var(--card);padding:16px;border-radius:10px;margin:12px auto;max-width:1100px}
 .hidden{display:none}
 .banner{max-width:1100px;margin:12px auto;padding:10px 12px;border-radius:8px;background:#122;color:#9fd}
-.row{display:flex;align-items:center}
-.between{justify-content:space-between}
-.center{justify-content:center}
-.gap{gap:8px}
-.grid{display:grid;gap:10px}
-.grid-2{grid-template-columns:repeat(2,1fr)}
-.grid-3{grid-template-columns:repeat(3,1fr)}
+.row{display:flex;align-items:center}.between{justify-content:space-between}.gap{gap:8px}
+.grid{display:grid;gap:10px}.grid-2{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(3,1fr)}
 label{display:flex;flex-direction:column;font-size:14px;gap:6px}
 input,select,textarea,button{padding:10px;border:1px solid #263043;border-radius:8px;background:#0f1520;color:var(--fg);outline:none}
-button{cursor:pointer}
-.primary{background:var(--acc);border:none}
-button:hover{filter:brightness(1.05)}
-.table-wrap{overflow:auto}
-table{width:100%;border-collapse:collapse;font-size:14px}
+button{cursor:pointer}.primary{background:var(--acc);border:none}
+.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{border-bottom:1px solid #1e2633;padding:8px;text-align:left;white-space:nowrap}
-td:last-child{white-space:nowrap}
-.muted{color:var(--muted)}
-.tabpane{display:none;margin-top:10px}
-.tabpane.show{display:block}
-.qr img{max-width:240px;border:1px solid #263043;border-radius:8px;padding:8px;background:#0f1520}
-.captcha-wrap{margin-top:6px}
+.muted{color:var(--muted)}.tabpane{display:none;margin-top:10px}.tabpane.show{display:block}
+.h-captcha-box{min-height:78px} /* 给容器固定高度，避免隐藏时初始化失败 */
