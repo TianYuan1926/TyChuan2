@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>交易日志 · 会话列表</title>
+  <title>交易日志 · 第3步 未验证引导+重发</title>
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
@@ -27,7 +27,7 @@
         <label>邮箱<input type="email" id="login-email" required /></label>
         <label>密码<input type="password" id="login-password" required /></label>
         <div id="captcha-login" class="h-captcha" data-sitekey=""></div>
-        <button type="submit" class="primary">登录</button>
+        <button type="submit" id="login-btn" class="primary">登录</button>
       </form>
     </div>
 
@@ -37,7 +37,7 @@
         <label>密码<input type="password" id="reg-password" required /></label>
         <label>确认密码<input type="password" id="reg-password2" required /></label>
         <div id="captcha-register" class="h-captcha" data-sitekey=""></div>
-        <button type="submit" class="primary">注册</button>
+        <button type="submit" id="reg-btn" class="primary">注册</button>
       </form>
     </div>
 
@@ -45,40 +45,30 @@
       <form id="forgot-form" class="grid grid-2">
         <label>邮箱<input type="email" id="forgot-email" required /></label>
         <div id="captcha-forgot" class="h-captcha" data-sitekey=""></div>
-        <button type="submit" class="primary">发送重置密码邮件</button>
+        <button type="submit" id="forgot-btn" class="primary">发送重置密码邮件</button>
       </form>
     </div>
 
     <div id="tab-mfa" class="tabpane">
-      <p class="muted small">TOTP 已接；此步重点是“会话列表 + 单设备下线”。</p>
+      <p class="muted small">开启 TOTP 后，登录会要求输入 6 位验证码。</p>
     </div>
   </section>
 
   <section id="app-section" class="card hidden">
     <div class="row between">
-      <h2>应用</h2>
+      <h2>交易</h2>
       <div class="row gap">
         <span id="user-email" class="muted"></span>
         <button id="logout-btn">退出登录</button>
       </div>
     </div>
 
-    <details class="card inner">
-      <summary><b>我的设备 / 会话</b></summary>
-      <div class="row gap">
-        <button id="refresh-sessions">刷新</button>
-        <button id="kick-others">下线其它设备</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>设备</th><th>IP</th><th>最近活跃</th><th>状态</th><th>操作</th></tr></thead>
-          <tbody id="session-tbody"></tbody>
-        </table>
-      </div>
-      <p class="muted small">当前设备会话 ID：<code id="current-session-id"></code></p>
-    </details>
+    <div id="verify-banner" class="warn hidden">
+      你的邮箱还未验证。请到邮箱点击确认链接。
+      <button id="resend-btn" class="ghost small">重发验证邮件</button>
+      <span id="resend-tip" class="muted small"></span>
+    </div>
 
-    <h3>交易（示例：写入需活跃会话）</h3>
     <form id="trade-form" class="grid grid-3">
       <label>时间<input type="datetime-local" id="trade_time" required /></label>
       <label>币种<input type="text" id="symbol" required placeholder="BTCUSDT" /></label>
@@ -88,18 +78,20 @@
       <label>手续费<input type="number" id="fee" step="0.00000001" min="0" value="0" /></label>
       <label>成交额（自动）<input type="number" id="amount" readonly /></label>
       <label class="span-3">备注<textarea id="notes" rows="2"></textarea></label>
-      <button type="submit" class="primary">保存记录</button>
+      <button type="submit" id="save-btn" class="primary">保存记录</button>
     </form>
 
     <div class="table-wrap">
       <table id="tx-table">
-        <thead><tr><th>时间</th><th>币种</th><th>方向</th><th>数量</th><th>价格</th><th>手续费</th><th>成交额</th><th>备注</th><th>操作</th></tr></thead>
+        <thead><tr><th>时间</th><th>币种</th><th>方向</th><th>数量</th><th>价格</th><th>手续费</th><th>成交额</th><th>备注</th></tr></thead>
         <tbody id="tx-tbody"></tbody>
       </table>
     </div>
   </section>
 
-  <footer class="footer"><span id="build-info" class="muted"></span></footer>
+  <footer class="footer">
+    <span id="build-info" class="muted"></span>
+  </footer>
 
   <script src="./config/config.js"></script>
   <script src="./main.js"></script>
