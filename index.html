@@ -3,31 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>交易日志 · P0 Free (Email Only)</title>
+  <title>交易日志 · AuthSecure Step2 (Stable Captcha)</title>
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <!-- 稳定加载：显式 onload 渲染 -->
-  <script>
-    window.hcaptchaOnLoad = function(){ if(window.__renderCaptchas) window.__renderCaptchas(); };
-  </script>
+  <!-- 显式渲染 + onload 回调，避免初始化时机问题 -->
   <script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
 </head>
 <body>
-  <header class="header slide-down">
-    <h1>交易日志 · P0 Free (Email)</h1>
+  <header class="header">
+    <h1>交易日志 · AuthSecure Step2</h1>
     <div id="status" class="banner">初始化中...</div>
   </header>
 
-  <section id="auth-section" class="card fade-in">
+  <section id="auth-section" class="card">
     <nav class="tabs row gap">
       <button class="tab active" data-tab="login">登录</button>
       <button class="tab" data-tab="register">注册</button>
       <button class="tab" data-tab="forgot">忘记密码</button>
-      <button class="tab" data-tab="magic">免密登录</button>
-      <button class="tab" data-tab="mfa">二步验证</button>
+      <button class="tab" data-tab="mfa">二步验证 (2FA)</button>
     </nav>
 
-    <!-- 登录 -->
     <div id="tab-login" class="tabpane show">
       <form id="login-form" class="grid grid-2">
         <label>邮箱
@@ -36,16 +31,20 @@
         <label>密码
           <input type="password" id="login-password" required />
         </label>
-        <label class="row gap">
-          <input type="checkbox" id="remember-me" checked />
-          <span class="muted small">保持登录</span>
+        <div class="captcha-wrap">
+          <div id="captcha-login" class="h-captcha-box"></div>
+        </div>
+        <button type="submit" id="login-btn" class="primary">登录</button>
+      </form>
+
+      <form id="mfa-challenge-form" class="grid grid-2 hidden">
+        <label>二步验证码（TOTP）
+          <input type="text" id="mfa-code" placeholder="6位数字" />
         </label>
-        <div class="captcha-wrap"><div id="captcha-login" class="h-captcha" data-sitekey=""></div></div>
-        <button type="submit" id="login-btn" class="primary pulse">登录</button>
+        <button type="submit" id="mfa-verify-btn" class="primary">验证并登录</button>
       </form>
     </div>
 
-    <!-- 注册 -->
     <div id="tab-register" class="tabpane">
       <form id="register-form" class="grid grid-2">
         <label>邮箱
@@ -53,42 +52,26 @@
         </label>
         <label>密码
           <input type="password" id="reg-password" required />
-          <span id="pw-strength" class="muted small">密码强度：未知</span>
         </label>
-        <div class="captcha-wrap"><div id="captcha-register" class="h-captcha" data-sitekey=""></div></div>
-        <label class="row gap">
-          <input type="checkbox" id="tos" required />
-          <span class="muted small">我已阅读并同意服务条款与隐私政策</span>
-        </label>
-        <button type="submit" id="reg-btn" class="primary pulse">注册</button>
+        <div class="captcha-wrap">
+          <div id="captcha-register" class="h-captcha-box"></div>
+        </div>
+        <button type="submit" id="reg-btn" class="primary">注册</button>
       </form>
-      <p class="muted small">若开启邮箱确认，注册后需到邮箱点击确认链接。</p>
     </div>
 
-    <!-- 忘记密码 -->
     <div id="tab-forgot" class="tabpane">
       <form id="forgot-form" class="grid grid-2">
         <label>邮箱
           <input type="email" id="forgot-email" required />
         </label>
-        <div class="captcha-wrap"><div id="captcha-forgot" class="h-captcha" data-sitekey=""></div></div>
-        <button type="submit" id="forgot-btn" class="primary pulse">发送重置密码邮件</button>
+        <div class="captcha-wrap">
+          <div id="captcha-forgot" class="h-captcha-box"></div>
+        </div>
+        <button type="submit" id="forgot-btn" class="primary">发送重置密码邮件</button>
       </form>
     </div>
 
-    <!-- 免密登录（邮件魔法链接） -->
-    <div id="tab-magic" class="tabpane">
-      <form id="magic-form" class="grid grid-2">
-        <label>邮箱
-          <input type="email" id="magic-email" required />
-        </label>
-        <div class="captcha-wrap"><div id="captcha-magic" class="h-captcha" data-sitekey=""></div></div>
-        <button type="submit" id="magic-btn" class="primary">发送登录链接</button>
-      </form>
-      <p class="muted small">我们会向你的邮箱发送一次性登录链接，点击即可登录。</p>
-    </div>
-
-    <!-- 二步验证管理 -->
     <div id="tab-mfa" class="tabpane">
       <div id="mfa-enroll-pane" class="hidden">
         <h3>开启二步验证（TOTP）</h3>
@@ -104,6 +87,7 @@
           </form>
         </div>
       </div>
+
       <div id="mfa-manage-pane" class="hidden">
         <p>二步验证已开启。</p>
         <button id="mfa-disable-btn">关闭二步验证</button>
@@ -111,7 +95,7 @@
     </div>
   </section>
 
-  <section id="app-section" class="card hidden fade-in">
+  <section id="app-section" class="card hidden">
     <div class="row between">
       <h2>新增交易</h2>
       <div class="row gap">
@@ -119,8 +103,6 @@
         <button id="logout-btn">退出登录</button>
       </div>
     </div>
-
-    <div id="verify-banner" class="warn hidden">你的邮箱未验证。后端已拦截写入，请先去邮箱完成验证。</div>
 
     <form id="trade-form">
       <div class="grid grid-3">
@@ -152,32 +134,11 @@
       <label>备注
         <textarea id="notes" rows="2" placeholder="可选"></textarea>
       </label>
-      <button type="submit" id="save-btn" class="primary pulse">保存记录</button>
+      <button type="submit" id="save-btn" class="primary">保存记录</button>
     </form>
-
-    <div class="row between">
-      <h2>我的记录</h2>
-      <div class="row gap">
-        <button id="refresh-btn">刷新</button>
-        <button id="export-btn">导出 CSV</button>
-      </div>
-    </div>
-
-    <div class="table-wrap">
-      <table id="tx-table">
-        <thead>
-          <tr>
-            <th>时间</th><th>币种</th><th>方向</th><th>数量</th><th>价格</th><th>手续费</th><th>成交额</th><th>备注</th><th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="tx-tbody"></tbody>
-      </table>
-    </div>
   </section>
 
   <footer class="footer">
-    <audio id="snd-ok" src="./assets/success.wav" preload="auto"></audio>
-    <audio id="snd-err" src="./assets/error.wav" preload="auto"></audio>
     <span id="build-info" class="muted"></span>
   </footer>
 
