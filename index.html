@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>交易日志 · P0 基座</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <!-- Supabase JS v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <header class="header">
+    <h1>交易日志 · P0 基座</h1>
+    <div id="status" class="banner">初始化中...</div>
+  </header>
+
+  <!-- 登录区 -->
+  <section id="auth-section" class="card">
+    <h2>登录</h2>
+    <form id="login-form" class="grid grid-2">
+      <label>邮箱
+        <input type="email" id="email" required placeholder="你在 Supabase 添加的邮箱" />
+      </label>
+      <label>密码
+        <input type="password" id="password" required placeholder="密码" />
+      </label>
+      <button type="submit" id="login-btn" class="primary">登录</button>
+    </form>
+  </section>
+
+  <!-- 应用区 -->
+  <section id="app-section" class="card hidden">
+    <div class="row between">
+      <h2>新增交易</h2>
+      <div class="row gap">
+        <span id="user-email" class="muted"></span>
+        <button id="logout-btn">退出登录</button>
+      </div>
+    </div>
+
+    <form id="trade-form">
+      <div class="grid grid-3">
+        <label>时间
+          <input type="datetime-local" id="trade_time" required />
+        </label>
+        <label>币种
+          <input type="text" id="symbol" placeholder="BTCUSDT" required />
+        </label>
+        <label>方向
+          <select id="side" required>
+            <option value="BUY">BUY</option>
+            <option value="SELL">SELL</option>
+          </select>
+        </label>
+        <label>数量
+          <input type="number" id="qty" step="0.00000001" min="0" required />
+        </label>
+        <label>价格
+          <input type="number" id="price" step="0.00000001" min="0" required />
+        </label>
+        <label>手续费
+          <input type="number" id="fee" step="0.00000001" min="0" value="0" />
+        </label>
+        <label>成交额（自动）
+          <input type="number" id="amount" step="0.00000001" min="0" readonly />
+        </label>
+      </div>
+      <label>备注
+        <textarea id="notes" rows="2" placeholder="可选"></textarea>
+      </label>
+      <button type="submit" id="save-btn" class="primary">保存记录</button>
+    </form>
+
+    <div class="row between">
+      <h2>我的记录</h2>
+      <div class="row gap">
+        <button id="refresh-btn">刷新</button>
+        <button id="export-btn">导出 CSV</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="tx-table">
+        <thead>
+          <tr>
+            <th>时间</th>
+            <th>币种</th>
+            <th>方向</th>
+            <th>数量</th>
+            <th>价格</th>
+            <th>手续费</th>
+            <th>成交额</th>
+            <th>备注</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="tx-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span id="build-info" class="muted"></span>
+  </footer>
+
+  <script src="./config/config.js"></script>
+  <script src="./main.js"></script>
+</body>
+</html>
