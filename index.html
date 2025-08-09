@@ -3,134 +3,39 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>交易日志 · P0 AuthPro</title>
+  <title>交易日志 · P0 AuthSecure Step1</title>
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
-  <header class="header slide-down">
-    <h1>交易日志 · P0 AuthPro</h1>
+  <header class="header">
+    <h1>交易日志 · P0 AuthSecure Step1</h1>
     <div id="status" class="banner">初始化中...</div>
   </header>
 
-  <!-- 认证区：邮箱 & 手机 -->
-  <section id="auth-section" class="card fade-in">
-    <nav class="tabs row gap" role="tablist">
-      <button class="tab active" data-tab="login">登录</button>
-      <button class="tab" data-tab="register">注册</button>
-      <button class="tab" data-tab="forgot">忘记密码</button>
-      <button class="tab" data-tab="phone">手机登录/注册</button>
-    </nav>
-
-    <!-- 登录（邮箱+密码） -->
-    <div id="tab-login" class="tabpane show">
-      <form id="login-form" class="grid grid-2">
-        <label>邮箱
-          <input type="email" id="login-email" required />
-        </label>
-        <label>密码
-          <input type="password" id="login-password" required />
-        </label>
-        <label class="row gap">
-          <input type="checkbox" id="remember-me" checked />
-          <span class="muted small">保持登录</span>
-        </label>
-        <button type="submit" id="login-btn" class="primary pulse">登录</button>
-      </form>
-    </div>
-
-    <!-- 注册（邮箱+密码） -->
-    <div id="tab-register" class="tabpane">
-      <form id="register-form" class="grid grid-2">
-        <label>邮箱
-          <input type="email" id="reg-email" required />
-        </label>
-        <label>密码
-          <input type="password" id="reg-password" required />
-          <span id="pw-strength" class="muted small">密码强度：未知</span>
-        </label>
-        <button type="submit" id="reg-btn" class="primary pulse">注册</button>
-      </form>
-      <p class="muted small">若开启邮箱确认，注册后需到邮箱点击确认链接。</p>
-    </div>
-
-    <!-- 忘记密码（邮箱） -->
-    <div id="tab-forgot" class="tabpane">
-      <form id="forgot-form" class="grid grid-2">
-        <label>邮箱
-          <input type="email" id="forgot-email" required />
-        </label>
-        <button type="submit" id="forgot-btn" class="primary pulse">发送重置密码邮件</button>
-      </form>
-      <p class="muted small">收到邮件后，点击链接回到本页面，设置新密码。</p>
-    </div>
-
-    <!-- 手机号 OTP 登录/注册 -->
-    <div id="tab-phone" class="tabpane">
-      <form id="phone-form" class="grid grid-3">
-        <label>地区
-          <select id="phone-region">
-            <option value="+65">🇸🇬 新加坡 (+65)</option>
-            <option value="+86">🇨🇳 中国大陆 (+86)</option>
-            <option value="+852">🇭🇰 香港 (+852)</option>
-            <option value="+853">🇲🇴 澳门 (+853)</option>
-            <option value="+886">🇹🇼 台湾 (+886)</option>
-            <option value="+81">🇯🇵 日本 (+81)</option>
-            <option value="+82">🇰🇷 韩国 (+82)</option>
-            <option value="+1">🇺🇸 美国/加拿大 (+1)</option>
-            <option value="+44">🇬🇧 英国 (+44)</option>
-            <option value="+49">🇩🇪 德国 (+49)</option>
-            <option value="+33">🇫🇷 法国 (+33)</option>
-            <option value="+61">🇦🇺 澳大利亚 (+61)</option>
-            <option value="+62">🇮🇩 印度尼西亚 (+62)</option>
-            <option value="+60">🇲🇾 马来西亚 (+60)</option>
-            <option value="+66">🇹🇭 泰国 (+66)</option>
-            <option value="+63">🇵🇭 菲律宾 (+63)</option>
-            <option value="+91">🇮🇳 印度 (+91)</option>
-            <option value="+971">🇦🇪 阿联酋 (+971)</option>
-          </select>
-        </label>
-        <label>手机号（不含区号）
-          <input type="tel" id="phone-number" required placeholder="示例：91234567" />
-        </label>
-        <label class="row gap">
-          <input type="checkbox" id="phone-remember" checked />
-          <span class="muted small">保持登录</span>
-        </label>
-        <button type="button" id="phone-send" class="primary pulse">发送验证码</button>
-      </form>
-
-      <form id="otp-form" class="grid grid-2 hidden">
-        <label>验证码
-          <input type="text" id="otp-code" required placeholder="6位数字" />
-        </label>
-        <button type="submit" id="otp-verify" class="primary pulse">验证并登录</button>
-      </form>
-      <p class="muted small">需要你在 Supabase 后台开启 Phone Auth 并配置短信服务商。</p>
-    </div>
-
-    <!-- 链接中带有 recovery 时显示设置新密码 -->
-    <div id="recovery-pane" class="tabpane hidden">
-      <h3>设置新密码</h3>
-      <form id="recovery-form" class="grid grid-2">
-        <label>新密码
-          <input type="password" id="recovery-password" required />
-        </label>
-        <button type="submit" id="recovery-btn" class="primary pulse">提交新密码</button>
-      </form>
-    </div>
+  <section id="auth-section" class="card">
+    <h2>登录</h2>
+    <form id="login-form" class="grid grid-2">
+      <label>邮箱
+        <input type="email" id="email" required />
+      </label>
+      <label>密码
+        <input type="password" id="password" required />
+      </label>
+      <button type="submit" id="login-btn" class="primary">登录</button>
+    </form>
   </section>
 
-  <!-- 应用区（登录后可见） -->
-  <section id="app-section" class="card hidden fade-in">
+  <section id="app-section" class="card hidden">
     <div class="row between">
-      <h2>新增交易</h2>
+      <h2>新增交易（后端校验：仅已验证邮箱或已验证手机的用户可写入）</h2>
       <div class="row gap">
         <span id="user-email" class="muted"></span>
-        <button id="change-pw-btn">修改密码</button>
         <button id="logout-btn">退出登录</button>
       </div>
     </div>
+
+    <div id="verify-banner" class="warn hidden">你的邮箱未验证且未绑定手机。已启用后端拦截，暂不允许写入。</div>
 
     <form id="trade-form">
       <div class="grid grid-3">
@@ -162,7 +67,7 @@
       <label>备注
         <textarea id="notes" rows="2" placeholder="可选"></textarea>
       </label>
-      <button type="submit" id="save-btn" class="primary pulse">保存记录</button>
+      <button type="submit" id="save-btn" class="primary">保存记录</button>
     </form>
 
     <div class="row between">
@@ -193,25 +98,7 @@
     </div>
   </section>
 
-  <!-- 修改密码弹窗 -->
-  <dialog id="pw-dialog">
-    <form method="dialog" id="pw-form" class="dialog-form">
-      <h3>修改密码</h3>
-      <div class="grid grid-2">
-        <label>新密码
-          <input type="password" id="pw-new" required />
-        </label>
-      </div>
-      <div class="row gap end">
-        <button value="cancel">取消</button>
-        <button id="pw-save" class="primary pulse" value="default">保存</button>
-      </div>
-    </form>
-  </dialog>
-
   <footer class="footer">
-    <audio id="snd-ok" src="./assets/success.wav" preload="auto"></audio>
-    <audio id="snd-err" src="./assets/error.wav" preload="auto"></audio>
     <span id="build-info" class="muted"></span>
   </footer>
 

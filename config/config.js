@@ -1,8 +1,1 @@
-// 已预填你的 Supabase 项目配置（AuthPro 版）
-window.APP_CONFIG = {
-  SUPABASE_URL: "https://lvoawckqgfbdpxufkabx.supabase.co",
-  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2b2F3Y2txZ2ZiZHB4dWZrYWJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ3NjQxMzYsImV4cCI6MjA3MDM0MDEzNn0.b7VmnydzPltH0Z__tRBmtOXRGzlI718CFruSDs95px8",
-  VERSION: "P0-AuthPro",
-  ENV: "dev",
-  AUTH: { persistSession: true } // 默认持久化（自动登录）
-};
+window.APP_CONFIG={SUPABASE_URL:'https://lvoawckqgfbdpxufkabx.supabase.co',SUPABASE_ANON_KEY:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2b2F3Y2txZ2ZiZHB4dWZrYWJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ3NjQxMzYsImV4cCI6MjA3MDM0MDEzNn0.b7VmnydzPltH0Z__tRBmtOXRGzlI718CFruSDs95px8',VERSION:'P0-AuthSecure-Step1',ENV:'dev'};
