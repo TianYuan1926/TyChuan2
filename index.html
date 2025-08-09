@@ -34,6 +34,21 @@ button{cursor:pointer;font-weight:700}.btn{background:#172131}.primary{backgroun
 
 code{background:#0f1620;border:1px solid var(--bd);padding:2px 6px;border-radius:6px}
 button[disabled]{opacity:.5;cursor:not-allowed}
+
+/* micro-interactions */
+.btn.loading{position:relative;pointer-events:none;opacity:.8}
+.btn.loading::after{content:'';position:absolute;right:10px;top:50%;width:14px;height:14px;margin-top:-7px;border:2px solid rgba(255,255,255,.6);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+tr.added{animation:poprow .35s ease}
+@keyframes poprow{from{opacity:.1;transform:translateY(-4px)}to{opacity:1;transform:none}}
+tr.removing{animation:fadeout .25s ease forwards}
+@keyframes fadeout{to{opacity:0;height:0}}
+.tooltip{position:relative;cursor:help}
+.tooltip:hover::after{content:attr(data-tip);position:absolute;left:0;top:100%;transform:translateY(6px);background:#0f1620;border:1px solid var(--bd);color:var(--txt);padding:6px 8px;border-radius:8px;white-space:nowrap;z-index:20;box-shadow:0 6px 18px rgba(0,0,0,.2)}
+.empty{padding:20px;text-align:center;color:var(--muted)}
+.badge.ok{border-color:#2bd576;color:#2bd576}
+.badge.warn{border-color:#e5a100;color:#e5a100}
+
 </style>
 </head>
 <body>
@@ -69,15 +84,15 @@ button[disabled]{opacity:.5;cursor:not-allowed}
       <h2>新增交易</h2>
       <div class="grid four">
         <select id="side"><option value="BUY">买入</option><option value="SELL">卖出</option></select>
-        <input id="symbol" placeholder="标的（BTCUSDT/AAPL）">
-        <input id="qty" type="number" step="0.00000001" placeholder="数量">
-        <input id="price" type="number" step="0.00000001" placeholder="价格">
+        <input id="symbol" placeholder="标的（BTCUSDT/AAPL）" class="tooltip" data-tip="建议统一大写，如 BTCUSDT / AAPL">
+        <input id="qty" type="number" step="0.00000001" placeholder="数量" class="tooltip" data-tip="正数，支持小数">
+        <input id="price" type="number" step="0.00000001" placeholder="价格" class="tooltip" data-tip="成交价，支持小数">
         <input id="fee" type="number" step="0.00000001" placeholder="手续费">
         <input id="exchange" placeholder="交易所（可选）">
         <input id="strategy" placeholder="策略（可选）">
         <input id="account" placeholder="账户（可选）">
         <input id="tags" class="full" placeholder="标签（逗号分隔，可选）">
-        <input id="ts" type="datetime-local" class="full">
+        <input id="ts" type="datetime-local" class="full tooltip" data-tip="默认当前时间，也可手动选择">
         <input id="receipt" type="file" accept=".png,.jpg,.jpeg" class="full">
       </div>
       <textarea id="notes" class="full mt8" placeholder="备注（可选）"></textarea>
@@ -251,7 +266,7 @@ addEventListener('hashchange', ()=> show(location.hash));
   sb = client();
   // 事件绑定
   $('loginBtn').onclick=onLogin; $('signupBtn').onclick=onSignup; $('logoutBtn').onclick=async()=>{ await sb.auth.signOut(); user=null; location.hash='#auth'; show(); };
-  $('saveBtn').onclick=onSave; $('refreshBtn').onclick=loadTable; $('cleanFilter').onclick=()=>{ $('filter_symbol').value=''; $('filter_side').value=''; $('filter_date').value=''; loadTable(); };
+  $('saveBtn').onclick=(e)=>{ if(e.target.disabled){ toast('请先填写：标的 / 数量 / 价格 / 时间', true); return; } onSave(); }; $('refreshBtn').onclick=loadTable; $('cleanFilter').onclick=()=>{ $('filter_symbol').value=''; $('filter_side').value=''; $('filter_date').value=''; loadTable(); };
   $('exportCsv').onclick=exportCsv; $('importCsv').onchange=importCsv; document.getElementById('loadMore').onclick=()=>{ pageOffset+=PAGE_LIMIT; loadTable(true); }; const deb=debounce(()=>{ pageOffset=0; loadTable(); }, 300); document.getElementById('filter_symbol').addEventListener('input', deb); document.getElementById('filter_side').addEventListener('change', ()=>{ pageOffset=0; loadTable(); }); document.getElementById('filter_date').addEventListener('change', ()=>{ pageOffset=0; loadTable(); });
   $('p_save').onclick=onSavePlan;
   $('s_save').onclick=onSaveSettings;
@@ -298,7 +313,7 @@ function restoreDraft(){
 
 // 保存交易
 async function onSave(){
-  const btn=$('saveBtn'); btn.disabled=true; $('saveMsg').textContent='保存中…';
+  const btn=$('saveBtn'); btn.disabled=true; btn.classList.add('loading'); $('saveMsg').textContent='保存中…';
   try{
     if(!user){ toast('未登录',true); return; }
     const payload={
@@ -324,22 +339,23 @@ async function onSave(){
     $('saveMsg').textContent='✅ 已保存'; $('qty').value=''; $('price').value=''; $('fee').value=''; $('notes').value='';
     loadTable();
   }catch(e){ toast('保存失败：'+e.message,true); showBanner('保存失败：'+e.message); }
-  finally{ btn.disabled=false; setTimeout(()=> $('saveMsg').textContent='', 1500); }
+  finally{ btn.disabled=false; btn.classList.remove('loading'); setTimeout(()=> $('saveMsg').textContent='', 1500); }
 }
 
 // 读取表格 + 统计
 async function loadTable(append=false){
-  const tbody=document.querySelector('#txTable tbody'); if(!append){ if(!append){ tbody.innerHTML=''; } for(let i=0;i<4;i++){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="13" class="shimmer">&nbsp;</td>'; tbody.appendChild(tr);} }
+  const tbody=document.querySelector('#txTable tbody'); if(!append){ if(!append){ if(!append){ tbody.innerHTML=''; } } for(let i=0;i<4;i++){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="13" class="shimmer">&nbsp;</td>'; tr.classList.add('added'); tbody.appendChild(tr);} }
   try{
     let q = sb.from('transactions').select('*').eq('user_id', user.id).order('ts',{ascending:false}).range(pageOffset, pageOffset+PAGE_LIMIT-1);
     const fs=$('filter_symbol').value.trim(); if(fs) q=q.ilike('symbol', `%${fs}%`);
     const fside=$('filter_side').value; if(fside) q=q.eq('side', fside);
     const fd=$('filter_date').value; if(fd){ const s=new Date(fd); const e=new Date(s); e.setDate(s.getDate()+1); q=q.gte('ts', s.toISOString()).lt('ts', e.toISOString()); }
     const { data:rows, error } = await q; if(error) throw error;
-    if(!append){ tbody.innerHTML=''; }
+    if(!append){ if(!append){ tbody.innerHTML=''; } }
 
     let cntBuy=0,cntSell=0,sumFee=0; const symCount=new Map(); const last7=new Array(7).fill(0);
     const today=new Date(); today.setHours(0,0,0,0);
+    if((rows||[]).length===0 && !append){ const tr=document.createElement('tr'); tr.innerHTML='<td class="empty" colspan="13">暂无记录，请先在上方新增交易</td>'; tbody.appendChild(tr); }
     for(const r of rows){
       if(r.side==='BUY') cntBuy++; else if(r.side==='SELL') cntSell++;
       sumFee += Number(r.fee||0); symCount.set(r.symbol, (symCount.get(r.symbol)||0)+1);
@@ -359,7 +375,7 @@ async function loadTable(append=false){
         <td>${r.attachment_url? `<a href="${r.attachment_url}" target="_blank">图片</a>`:''}</td>
         <td>${r.notes||''}</td>
         <td><button class="btn ghost" data-id="${r.id}">删除</button></td>`;
-      tbody.appendChild(tr);
+      tr.classList.add('added'); tbody.appendChild(tr);
     }
     document.querySelectorAll('button[data-id]').forEach(btn=>{
       btn.onclick = async ()=>{ if(!confirm('确定删除？')) return; const id=btn.getAttribute('data-id'); const { error } = await sb.from('transactions').delete().eq('id', id); if(error) toast('删除失败：'+error.message,true); else loadTable(); };
@@ -499,6 +515,36 @@ async function runHealthCheck(){
 
   msg.textContent='✅ 一切正常，可以使用';
 }
+
+
+// image hover preview
+document.addEventListener('mouseover', (e)=>{
+  const a = e.target.closest('a[href][target="_blank"]');
+  if(!a || !/^(http|https):/.test(a.getAttribute('href'))) return;
+  if(!/\.(png|jpg|jpeg|webp)$/i.test(a.href)) return;
+  const tip=document.createElement('div');
+  tip.style.position='fixed'; tip.style.pointerEvents='none'; tip.style.zIndex='200';
+  tip.style.border='1px solid var(--bd)'; tip.style.background='#0f1620'; tip.style.padding='4px'; tip.style.borderRadius='8px';
+  const img=new Image(); img.src=a.href; img.style.maxWidth='200px'; img.style.maxHeight='140px'; tip.appendChild(img);
+  document.body.appendChild(tip);
+  function move(ev){ tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY+12)+'px'; }
+  function end(){ document.removeEventListener('mousemove',move); a.removeEventListener('mouseleave',end); tip.remove(); }
+  document.addEventListener('mousemove',move); a.addEventListener('mouseleave',end);
+});
+
+
+async function badgeHealth(){
+  try{
+    const c=client();
+    const { data:{ session } } = await c.auth.getSession();
+    const b=document.getElementById('netdot');
+    if(!session){ b.classList.remove('ok'); b.classList.add('warn'); b.textContent='• 未登录'; return; }
+    const { error } = await c.from('transactions').select('id').limit(1);
+    if(error){ b.classList.remove('ok'); b.classList.add('warn'); b.textContent='• 未就绪'; }
+    else { b.classList.remove('warn'); b.classList.add('ok'); b.textContent='• 在线'; }
+  }catch{}
+}
+setInterval(badgeHealth, 6000); badgeHealth();
 
 </script>
 </body>
