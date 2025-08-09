@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>交易日志 · 密码策略加强</title>
+  <title>交易日志 · 会话列表</title>
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
@@ -22,82 +22,63 @@
       <button class="tab" data-tab="mfa">二步验证</button>
     </nav>
 
-    <!-- 登录 -->
     <div id="tab-login" class="tabpane show">
       <form id="login-form" class="grid grid-2">
-        <label>邮箱
-          <input type="email" id="login-email" required />
-        </label>
-        <label>密码
-          <input type="password" id="login-password" required />
-        </label>
+        <label>邮箱<input type="email" id="login-email" required /></label>
+        <label>密码<input type="password" id="login-password" required /></label>
         <div id="captcha-login" class="h-captcha" data-sitekey=""></div>
-        <button type="submit" id="login-btn" class="primary">登录</button>
+        <button type="submit" class="primary">登录</button>
       </form>
     </div>
 
-    <!-- 注册（含密码策略/强度/黑名单/HIBP 可选） -->
     <div id="tab-register" class="tabpane">
       <form id="register-form" class="grid grid-2">
-        <label>邮箱
-          <input type="email" id="reg-email" required />
-        </label>
-        <label>密码
-          <div class="pw-wrap">
-            <input type="password" id="reg-password" required />
-            <button type="button" class="pw-toggle" data-target="reg-password">显示</button>
-          </div>
-          <div id="pw-meter" class="pw-meter"><div></div></div>
-          <ul class="pw-reqs">
-            <li data-req="len">长度 ≥ <b id="minLenText">10</b></li>
-            <li data-req="upper">至少 1 个大写字母</li>
-            <li data-req="lower">至少 1 个小写字母</li>
-            <li data-req="digit">至少 1 个数字</li>
-            <li data-req="symbol">至少 1 个符号（!@#$%^&* 等）</li>
-            <li data-req="blacklist">不在常见弱口令黑名单</li>
-            <li data-req="hibp">（可选）未出现在泄露库</li>
-          </ul>
-        </label>
-        <label>确认密码
-          <input type="password" id="reg-password2" required />
-        </label>
-        <div class="row gap">
-          <div id="captcha-register" class="h-captcha" data-sitekey=""></div>
-          <button type="button" id="btn-hibp-check" class="ghost small">检查泄露（可选）</button>
-        </div>
-        <button type="submit" id="reg-btn" class="primary">注册</button>
+        <label>邮箱<input type="email" id="reg-email" required /></label>
+        <label>密码<input type="password" id="reg-password" required /></label>
+        <label>确认密码<input type="password" id="reg-password2" required /></label>
+        <div id="captcha-register" class="h-captcha" data-sitekey=""></div>
+        <button type="submit" class="primary">注册</button>
       </form>
-      <p class="muted small">提示：你也可以稍后到“设置 → 修改密码”再次检查泄露。</p>
     </div>
 
-    <!-- 忘记密码 -->
     <div id="tab-forgot" class="tabpane">
       <form id="forgot-form" class="grid grid-2">
-        <label>邮箱
-          <input type="email" id="forgot-email" required />
-        </label>
+        <label>邮箱<input type="email" id="forgot-email" required /></label>
         <div id="captcha-forgot" class="h-captcha" data-sitekey=""></div>
-        <button type="submit" id="forgot-btn" class="primary">发送重置密码邮件</button>
+        <button type="submit" class="primary">发送重置密码邮件</button>
       </form>
     </div>
 
-    <!-- 2FA -->
     <div id="tab-mfa" class="tabpane">
-      <p class="muted small">在 Supabase 后台开启 TOTP 后，这里显示开关与挑战流程（已接好）。</p>
+      <p class="muted small">TOTP 已接；此步重点是“会话列表 + 单设备下线”。</p>
     </div>
   </section>
 
-  <!-- 应用区 -->
   <section id="app-section" class="card hidden">
     <div class="row between">
-      <h2>交易</h2>
+      <h2>应用</h2>
       <div class="row gap">
         <span id="user-email" class="muted"></span>
-        <button id="change-pw-btn">修改密码</button>
         <button id="logout-btn">退出登录</button>
       </div>
     </div>
-    <div id="verify-banner" class="warn hidden">你的邮箱未验证。为安全起见，后端已锁定写入。</div>
+
+    <details class="card inner">
+      <summary><b>我的设备 / 会话</b></summary>
+      <div class="row gap">
+        <button id="refresh-sessions">刷新</button>
+        <button id="kick-others">下线其它设备</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>设备</th><th>IP</th><th>最近活跃</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="session-tbody"></tbody>
+        </table>
+      </div>
+      <p class="muted small">当前设备会话 ID：<code id="current-session-id"></code></p>
+    </details>
+
+    <h3>交易（示例：写入需活跃会话）</h3>
     <form id="trade-form" class="grid grid-3">
       <label>时间<input type="datetime-local" id="trade_time" required /></label>
       <label>币种<input type="text" id="symbol" required placeholder="BTCUSDT" /></label>
@@ -107,14 +88,9 @@
       <label>手续费<input type="number" id="fee" step="0.00000001" min="0" value="0" /></label>
       <label>成交额（自动）<input type="number" id="amount" readonly /></label>
       <label class="span-3">备注<textarea id="notes" rows="2"></textarea></label>
-      <button type="submit" id="save-btn" class="primary">保存记录</button>
+      <button type="submit" class="primary">保存记录</button>
     </form>
 
-    <h3>我的记录</h3>
-    <div class="row gap">
-      <button id="refresh-btn">刷新</button>
-      <button id="export-btn">导出 CSV</button>
-    </div>
     <div class="table-wrap">
       <table id="tx-table">
         <thead><tr><th>时间</th><th>币种</th><th>方向</th><th>数量</th><th>价格</th><th>手续费</th><th>成交额</th><th>备注</th><th>操作</th></tr></thead>
@@ -123,38 +99,7 @@
     </div>
   </section>
 
-  <!-- 修改密码对话框（带策略与 HIBP 可选检查） -->
-  <dialog id="pw-dialog">
-    <form method="dialog" id="pw-form" class="dialog-form">
-      <h3>修改密码</h3>
-      <div class="grid grid-2">
-        <label>当前密码<input type="password" id="pw-old" required /></label>
-        <label>新密码
-          <div class="pw-wrap"><input type="password" id="pw-new" required /><button type="button" class="pw-toggle" data-target="pw-new">显示</button></div>
-          <div id="pw-meter2" class="pw-meter"><div></div></div>
-          <ul class="pw-reqs" id="pw-reqs2">
-            <li data-req="len">长度 ≥ <b id="minLenText2">10</b></li>
-            <li data-req="upper">至少 1 个大写字母</li>
-            <li data-req="lower">至少 1 个小写字母</li>
-            <li data-req="digit">至少 1 个数字</li>
-            <li data-req="symbol">至少 1 个符号</li>
-            <li data-req="blacklist">不在常见弱口令黑名单</li>
-            <li data-req="hibp">（可选）未出现在泄露库</li>
-          </ul>
-        </label>
-        <label>确认新密码<input type="password" id="pw-new2" required /></label>
-      </div>
-      <div class="row gap end">
-        <button type="button" id="btn-hibp-check2" class="ghost small">检查泄露（可选）</button>
-        <button value="cancel">取消</button>
-        <button id="pw-save" class="primary" value="default">保存</button>
-      </div>
-    </form>
-  </dialog>
-
-  <footer class="footer">
-    <span id="build-info" class="muted"></span>
-  </footer>
+  <footer class="footer"><span id="build-info" class="muted"></span></footer>
 
   <script src="./config/config.js"></script>
   <script src="./main.js"></script>
