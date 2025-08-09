@@ -1,17 +1,47 @@
-
-:root{--bg:#0b0f14;--fg:#e6edf3;--muted:#9aa4b2;--card:#121822;--acc:#4caf50;--warn:#e0a800}
+:root{--bg:#0b0f14;--fg:#e6edf3;--muted:#9aa4b2;--card:#121822;--acc:#4caf50;--err:#e5534b;--warn:#e0a800}
 *{box-sizing:border-box}
 body{margin:0;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--fg)}
+h1,h2{margin:0 0 12px}
 .header,.footer{max-width:1100px;margin:0 auto 12px}
 .card{background:var(--card);padding:16px;border-radius:10px;margin:12px auto;max-width:1100px}
+.hidden{display:none}
 .banner{max-width:1100px;margin:12px auto;padding:10px 12px;border-radius:8px;background:#122;color:#9fd}
 .warn{background:#2a210a;color:#ffd86b;border:1px solid #5a4a10;padding:10px;border-radius:8px;margin:10px 0}
-.row{display:flex;align-items:center}.between{justify-content:space-between}.gap{gap:8px}.end{justify-content:flex-end}
-.grid{display:grid;gap:10px}.grid-3{grid-template-columns:repeat(3,1fr)}.span-3{grid-column:1/span 3}
+.row{display:flex;align-items:center}.between{justify-content:space-between}.center{justify-content:center}.gap{gap:8px}.end{justify-content:flex-end}
+.grid{display:grid;gap:10px}.grid-2{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(3,1fr)}.span-3{grid-column:1/span 3}
 label{display:flex;flex-direction:column;font-size:14px;gap:6px}
-input,select,textarea,button{padding:10px;border:1px solid #263043;border-radius:8px;background:#0f1520;color:var(--fg)}
-.primary{background:var(--acc);border:none;cursor:pointer}.ghost{background:transparent;border:1px solid #263043;cursor:pointer}
-.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #1e2633;padding:8px;white-space:nowrap}
-.muted{color:var(--muted)}.small{font-size:12px}
-.badge{display:inline-block;min-width:18px;padding:2px 6px;border-radius:999px;background:#e5534b;color:#fff;font-size:12px;text-align:center}
-.hidden{display:none}
+input,select,textarea,button{padding:10px;border:1px solid #263043;border-radius:8px;background:#0f1520;color:var(--fg);outline:none}
+button{cursor:pointer}.primary{background:var(--acc);border:none}.ghost{background:transparent;border:1px solid #263043}
+.small{font-size:12px;padding:6px 10px}
+button:hover{filter:brightness(1.05)}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid #1e2633;padding:8px;text-align:left;white-space:nowrap}
+td:last-child{white-space:nowrap}
+.muted{color:var(--muted)}
+
+/* 动效 */
+@media (prefers-reduced-motion: no-preference){
+  .fade-in{animation: fade .4s ease both}
+  .rise{animation: rise .4s ease both}
+  .tabpane.show{animation: fade .2s ease both}
+}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* 按钮加载态 */
+button.loading{position:relative;pointer-events:none;opacity:.8}
+button.loading::after{content:'';position:absolute;right:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:translateY(-50%) rotate(360deg)}}
+
+/* Toast */
+#toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:10px;z-index:9999}
+.toast{min-width:240px;max-width:360px;padding:12px 14px;border-radius:10px;background:#142030;border:1px solid #24324a;box-shadow:0 6px 20px rgba(0,0,0,.35);color:#e6edf3}
+.toast.ok{border-color:#2f6f45}
+.toast.err{border-color:#7a2d2d}
+.toast .t-title{font-weight:600;margin-bottom:4px}
+.toast .t-close{float:right;opacity:.7;cursor:pointer}
+
+/* 骨架屏 */
+.skeleton{height:140px;border-radius:12px;background:linear-gradient(90deg,#0f1520 25%,#172033 37%,#0f1520 63%);background-size:400% 100%;animation:shimmer 1.2s ease-in-out infinite}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
