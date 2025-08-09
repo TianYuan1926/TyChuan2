@@ -3,28 +3,31 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>交易日志 · AuthSecure Step3 (Phone)</title>
+  <title>交易日志 · P0 Free (Email Only)</title>
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <!-- hCaptcha 稳定加载：onload 回调 + 显式渲染 -->
+  <!-- 稳定加载：显式 onload 渲染 -->
+  <script>
+    window.hcaptchaOnLoad = function(){ if(window.__renderCaptchas) window.__renderCaptchas(); };
+  </script>
   <script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
 </head>
 <body>
-  <header class="header">
-    <h1>交易日志 · AuthSecure Step3</h1>
+  <header class="header slide-down">
+    <h1>交易日志 · P0 Free (Email)</h1>
     <div id="status" class="banner">初始化中...</div>
   </header>
 
-  <section id="auth-section" class="card">
+  <section id="auth-section" class="card fade-in">
     <nav class="tabs row gap">
       <button class="tab active" data-tab="login">登录</button>
       <button class="tab" data-tab="register">注册</button>
       <button class="tab" data-tab="forgot">忘记密码</button>
-      <button class="tab" data-tab="phone">手机登录/注册</button>
-      <button class="tab" data-tab="mfa">二步验证 (2FA)</button>
+      <button class="tab" data-tab="magic">免密登录</button>
+      <button class="tab" data-tab="mfa">二步验证</button>
     </nav>
 
-    <!-- 登录（邮箱） -->
+    <!-- 登录 -->
     <div id="tab-login" class="tabpane show">
       <form id="login-form" class="grid grid-2">
         <label>邮箱
@@ -33,19 +36,16 @@
         <label>密码
           <input type="password" id="login-password" required />
         </label>
-        <div class="captcha-wrap"><div id="captcha-login" class="h-captcha" data-sitekey=""></div></div>
-        <button type="submit" id="login-btn" class="primary">登录</button>
-      </form>
-
-      <form id="mfa-challenge-form" class="grid grid-2 hidden">
-        <label>二步验证码（TOTP）
-          <input type="text" id="mfa-code" placeholder="6位数字" />
+        <label class="row gap">
+          <input type="checkbox" id="remember-me" checked />
+          <span class="muted small">保持登录</span>
         </label>
-        <button type="submit" id="mfa-verify-btn" class="primary">验证并登录</button>
+        <div class="captcha-wrap"><div id="captcha-login" class="h-captcha" data-sitekey=""></div></div>
+        <button type="submit" id="login-btn" class="primary pulse">登录</button>
       </form>
     </div>
 
-    <!-- 注册（邮箱） -->
+    <!-- 注册 -->
     <div id="tab-register" class="tabpane">
       <form id="register-form" class="grid grid-2">
         <label>邮箱
@@ -53,10 +53,16 @@
         </label>
         <label>密码
           <input type="password" id="reg-password" required />
+          <span id="pw-strength" class="muted small">密码强度：未知</span>
         </label>
         <div class="captcha-wrap"><div id="captcha-register" class="h-captcha" data-sitekey=""></div></div>
-        <button type="submit" id="reg-btn" class="primary">注册</button>
+        <label class="row gap">
+          <input type="checkbox" id="tos" required />
+          <span class="muted small">我已阅读并同意服务条款与隐私政策</span>
+        </label>
+        <button type="submit" id="reg-btn" class="primary pulse">注册</button>
       </form>
+      <p class="muted small">若开启邮箱确认，注册后需到邮箱点击确认链接。</p>
     </div>
 
     <!-- 忘记密码 -->
@@ -66,50 +72,23 @@
           <input type="email" id="forgot-email" required />
         </label>
         <div class="captcha-wrap"><div id="captcha-forgot" class="h-captcha" data-sitekey=""></div></div>
-        <button type="submit" id="forgot-btn" class="primary">发送重置密码邮件</button>
+        <button type="submit" id="forgot-btn" class="primary pulse">发送重置密码邮件</button>
       </form>
     </div>
 
-    <!-- 手机号登录/注册（E.164 + 冷却 + 倒计时） -->
-    <div id="tab-phone" class="tabpane">
-      <form id="phone-form" class="grid grid-3">
-        <label>区号
-          <select id="phone-region">
-            <option value="+86">🇨🇳 +86</option>
-            <option value="+852">🇭🇰 +852</option>
-            <option value="+853">🇲🇴 +853</option>
-            <option value="+886">🇹🇼 +886</option>
-            <option value="+81">🇯🇵 +81</option>
-            <option value="+82">🇰🇷 +82</option>
-            <option value="+65">🇸🇬 +65</option>
-            <option value="+60">🇲🇾 +60</option>
-            <option value="+62">🇮🇩 +62</option>
-            <option value="+66">🇹🇭 +66</option>
-            <option value="+1">🇺🇸/🇨🇦 +1</option>
-            <option value="+44">🇬🇧 +44</option>
-            <option value="+49">🇩🇪 +49</option>
-            <option value="+33">🇫🇷 +33</option>
-            <option value="+61">🇦🇺 +61</option>
-            <option value="+971">🇦🇪 +971</option>
-          </select>
+    <!-- 免密登录（邮件魔法链接） -->
+    <div id="tab-magic" class="tabpane">
+      <form id="magic-form" class="grid grid-2">
+        <label>邮箱
+          <input type="email" id="magic-email" required />
         </label>
-        <label>手机号（不含区号）
-          <input type="tel" id="phone-number" required placeholder="仅数字" />
-        </label>
-        <div class="captcha-wrap"><div id="captcha-phone" class="h-captcha" data-sitekey=""></div></div>
-        <button type="button" id="phone-send" class="primary">发送验证码</button>
+        <div class="captcha-wrap"><div id="captcha-magic" class="h-captcha" data-sitekey=""></div></div>
+        <button type="submit" id="magic-btn" class="primary">发送登录链接</button>
       </form>
-
-      <form id="otp-form" class="grid grid-2 hidden">
-        <label>验证码
-          <input type="text" id="otp-code" required placeholder="6位数字" />
-        </label>
-        <button type="submit" id="otp-verify" class="primary">验证并登录</button>
-      </form>
-      <p class="muted small">提示：手机号会自动转换为 <code>E.164</code> 格式发送（例如 +8613712345678）。</p>
+      <p class="muted small">我们会向你的邮箱发送一次性登录链接，点击即可登录。</p>
     </div>
 
-    <!-- 2FA 管理 -->
+    <!-- 二步验证管理 -->
     <div id="tab-mfa" class="tabpane">
       <div id="mfa-enroll-pane" class="hidden">
         <h3>开启二步验证（TOTP）</h3>
@@ -125,7 +104,6 @@
           </form>
         </div>
       </div>
-
       <div id="mfa-manage-pane" class="hidden">
         <p>二步验证已开启。</p>
         <button id="mfa-disable-btn">关闭二步验证</button>
@@ -133,51 +111,16 @@
     </div>
   </section>
 
-  <section id="app-section" class="card hidden">
+  <section id="app-section" class="card hidden fade-in">
     <div class="row between">
-      <h2>账户中心</h2>
+      <h2>新增交易</h2>
       <div class="row gap">
         <span id="user-email" class="muted"></span>
         <button id="logout-btn">退出登录</button>
       </div>
     </div>
 
-    <!-- 绑定/更换手机（账号合并） -->
-    <div class="card inner">
-      <h3>绑定/更换手机（将手机绑定到当前账号，实现邮箱+手机同一账户）</h3>
-      <form id="bind-form" class="grid grid-3">
-        <label>区号
-          <select id="bind-region">
-            <option value="+86">+86</option><option value="+852">+852</option><option value="+853">+853</option>
-            <option value="+886">+886</option><option value="+81">+81</option><option value="+82">+82</option>
-            <option value="+65">+65</option><option value="+60">+60</option><option value="+62">+62</option>
-            <option value="+66">+66</option><option value="+1">+1</option><option value="+44">+44</option>
-            <option value="+49">+49</option><option value="+33">+33</option><option value="+61">+61</option>
-            <option value="+971">+971</option>
-          </select>
-        </label>
-        <label>手机号（不含区号）
-          <input type="tel" id="bind-number" required />
-        </label>
-        <button type="button" id="bind-send" class="primary">发送绑定验证码</button>
-      </form>
-
-      <form id="bind-verify-form" class="grid grid-2 hidden">
-        <label>短信验证码
-          <input type="text" id="bind-code" required placeholder="6位数字" />
-        </label>
-        <button type="submit" id="bind-verify" class="primary">完成绑定</button>
-      </form>
-      <p class="muted small">说明：发送后账号会进入“变更手机”流程，输入验证码即可把该手机**绑定到当前账号**。</p>
-    </div>
-
-    <div class="row between">
-      <h2>新增交易</h2>
-      <div class="row gap">
-        <button id="refresh-btn">刷新</button>
-        <button id="export-btn">导出 CSV</button>
-      </div>
-    </div>
+    <div id="verify-banner" class="warn hidden">你的邮箱未验证。后端已拦截写入，请先去邮箱完成验证。</div>
 
     <form id="trade-form">
       <div class="grid grid-3">
@@ -209,22 +152,22 @@
       <label>备注
         <textarea id="notes" rows="2" placeholder="可选"></textarea>
       </label>
-      <button type="submit" id="save-btn" class="primary">保存记录</button>
+      <button type="submit" id="save-btn" class="primary pulse">保存记录</button>
     </form>
+
+    <div class="row between">
+      <h2>我的记录</h2>
+      <div class="row gap">
+        <button id="refresh-btn">刷新</button>
+        <button id="export-btn">导出 CSV</button>
+      </div>
+    </div>
 
     <div class="table-wrap">
       <table id="tx-table">
         <thead>
           <tr>
-            <th>时间</th>
-            <th>币种</th>
-            <th>方向</th>
-            <th>数量</th>
-            <th>价格</th>
-            <th>手续费</th>
-            <th>成交额</th>
-            <th>备注</th>
-            <th>操作</th>
+            <th>时间</th><th>币种</th><th>方向</th><th>数量</th><th>价格</th><th>手续费</th><th>成交额</th><th>备注</th><th>操作</th>
           </tr>
         </thead>
         <tbody id="tx-tbody"></tbody>
@@ -233,6 +176,8 @@
   </section>
 
   <footer class="footer">
+    <audio id="snd-ok" src="./assets/success.wav" preload="auto"></audio>
+    <audio id="snd-err" src="./assets/error.wav" preload="auto"></audio>
     <span id="build-info" class="muted"></span>
   </footer>
 
