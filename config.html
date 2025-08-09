@@ -1,0 +1,21 @@
+<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>配置 Supabase</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head><body>
+<div class="wrap">
+  <div class="card">
+    <h2>配置 Supabase（只做一次）</h2>
+    <p class="muted">在此粘贴 <b>Project URL</b> 和 <b>anon public key</b>，保存后浏览器会记住。</p>
+    <div class="grid"><input id="u" class="full" placeholder="https://xxxx.supabase.co"><input id="k" class="full" placeholder="eyJ...（anon 公钥）"></div>
+    <div class="row" style="margin-top:10px"><button id="save" class="primary">保存</button><a id="back" class="secondary" href="app.html">返回 app.html</a><span id="msg" class="muted"></span></div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+(()=>{ const cfg=sbConfig.getSupabaseConfig(); if(cfg.url) $('u').value=cfg.url; if(cfg.key) $('k').value=cfg.key; })();
+$('save').onclick=()=>{ const url=$('u').value.trim(), key=$('k').value.trim(); if(!url||!key){$('msg').textContent='请填写 URL 与 KEY';return;} sbConfig.setSupabaseConfig(url,key); $('msg').textContent='已保存'; const next=new URLSearchParams(location.search).get('next')||'app.html'; setTimeout(()=>location.href=next,400); };
+</script>
+</body></html>
