@@ -7,15 +7,22 @@
 </head><body>
 <div class="wrap">
   <div class="card">
-    <h2>配置 Supabase（只做一次）</h2>
-    <p class="muted">在此粘贴 <b>Project URL</b> 和 <b>anon public key</b>，保存后浏览器会记住。</p>
-    <div class="grid"><input id="u" class="full" placeholder="https://xxxx.supabase.co"><input id="k" class="full" placeholder="eyJ...（anon 公钥）"></div>
-    <div class="row" style="margin-top:10px"><button id="save" class="primary">保存</button><a id="back" class="secondary" href="app.html">返回 app.html</a><span id="msg" class="muted"></span></div>
+    <h2>配置 Supabase</h2>
+    <p class="muted">这里会自动填入你当前的配置（已预置你提供的 URL 与 anon 公钥）。如需更改可直接修改并保存。</p>
+    <div class="grid">
+      <input id="u" class="full" placeholder="https://xxxx.supabase.co">
+      <input id="k" class="full" placeholder="anon 公钥">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="save" class="primary">保存</button>
+      <a class="secondary" href="app.html">返回 app.html</a>
+      <span id="msg" class="muted"></span>
+    </div>
   </div>
 </div>
 <script>
-const $=id=>document.getElementById(id);
-(()=>{ const cfg=sbConfig.getSupabaseConfig(); if(cfg.url) $('u').value=cfg.url; if(cfg.key) $('k').value=cfg.key; })();
-$('save').onclick=()=>{ const url=$('u').value.trim(), key=$('k').value.trim(); if(!url||!key){$('msg').textContent='请填写 URL 与 KEY';return;} sbConfig.setSupabaseConfig(url,key); $('msg').textContent='已保存'; const next=new URLSearchParams(location.search).get('next')||'app.html'; setTimeout(()=>location.href=next,400); };
+const u=document.getElementById('u'), k=document.getElementById('k'), msg=document.getElementById('msg');
+(()=>{ const cfg=sbConfig.getSupabaseConfig(); u.value=cfg.url; k.value=cfg.key; })();
+document.getElementById('save').onclick=()=>{ sbConfig.setSupabaseConfig(u.value.trim(), k.value.trim()); msg.textContent='已保存'; setTimeout(()=>{const next=new URLSearchParams(location.search).get('next')||'app.html'; location.href=next;},500); };
 </script>
 </body></html>

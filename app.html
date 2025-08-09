@@ -1,6 +1,6 @@
 <!doctype html><html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>交易日志 · 稳定基座 v3</title>
+<title>交易日志 · 单页基座</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -8,7 +8,7 @@
 <div class="wrap">
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <div><strong>交易日志 · 稳定基座 v3</strong></div>
+      <div><strong>交易日志 · 单页基座</strong></div>
       <div class="row">
         <a class="secondary" href="config.html">配置</a>
         <button id="logoutBtn" class="secondary">退出</button>
@@ -73,8 +73,8 @@
 </div>
 
 <script>
-const $=id=>document.getElementById(id);
-function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2200); }
+const $=(id)=>document.getElementById(id);
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2400); }
 function parseNum(v){ if(v===''||v===null||v===undefined) return null; const n=Number(v); return Number.isFinite(n)?n:null; }
 function toISO(v){ if(!v) return null; const d=new Date(v); return isNaN(d)?null:d.toISOString(); }
 function fmt(n){ return (n===null||n===undefined||Number.isNaN(n))?'':Number(n).toFixed(4); }
@@ -82,8 +82,13 @@ function fmt(n){ return (n===null||n===undefined||Number.isNaN(n))?'':Number(n).
 let sb, currentUser;
 
 (async function init(){
-  try{ sb = sbConfig.getSupabase(); }catch(e){ return; } // 未配置会跳 config.html
-  const u = await sbConfig.requireAuth(); if(u){ onLogin(u); }
+  try{
+    sb = sbConfig.getSupabase(); // 未配置会跳 config.html；本包已预置
+  }catch(e){ return; }
+
+  const u = await sbConfig.requireAuth();
+  if(u){ onLogin(u); }
+
   $('loginBtn').onclick = async ()=>{
     $('loginBtn').disabled=true; $('authMsg').textContent='登录中…';
     try{
@@ -103,6 +108,7 @@ let sb, currentUser;
     finally{ $('signupBtn').disabled=false; $('authMsg').textContent=''; }
   };
   $('logoutBtn').onclick = async ()=>{ await sb.auth.signOut(); location.reload(); };
+
   $('saveBtn').onclick = onSave;
   $('filterBtn').onclick = loadTable;
   $('clearBtn').onclick = ()=>{ $('filter_symbol').value=''; $('filter_side').value=''; $('filter_date').value=''; loadTable(); };
@@ -167,18 +173,18 @@ async function loadTable(){
         <td>${r.account||''}</td>
         <td>${(r.tags||[]).join(' ')}</td>
         <td>${r.notes||''}</td>
-        <td><button class="secondary" data-id="${r.id}">删除</button></td>`;
+        <td><button class="secondary" data-id="${{r.id}}">删除</button></td>`;
       tbody.appendChild(tr);
     }
     document.querySelectorAll('button[data-id]').forEach(btn=>{
       btn.onclick = async ()=>{
         if(!confirm('确定删除？')) return;
         const id=btn.getAttribute('data-id');
-        const { error } = await sb.from('transactions').delete().eq('id', id);
+        const {{ error }} = await sb.from('transactions').delete().eq('id', id);
         if(error) toast('删除失败：'+error.message); else loadTable();
       };
     });
-  }catch(e){ tbody.innerHTML = `<tr><td colspan="12">读取失败：${e.message}</td></tr>`; }
+  }catch(e){ tbody.innerHTML = `<tr><td colspan="12">读取失败：${{e.message}}</td></tr>`; }
 }
 </script>
 </body></html>
