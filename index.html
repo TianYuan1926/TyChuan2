@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>交易日志 · 第3步 未验证引导+重发</title>
+  <title>交易日志 · 第5步 安全审计日志</title>
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
@@ -29,6 +29,9 @@
         <div id="captcha-login" class="h-captcha" data-sitekey=""></div>
         <button type="submit" id="login-btn" class="primary">登录</button>
       </form>
+      <div class="row gap">
+        <button id="btn-magic" class="ghost small">用邮箱链接登录</button>
+      </div>
     </div>
 
     <div id="tab-register" class="tabpane">
@@ -81,10 +84,17 @@
       <button type="submit" id="save-btn" class="primary">保存记录</button>
     </form>
 
+    <div class="row between">
+      <h3>我的安全日志</h3>
+      <div class="row gap">
+        <button id="sec-refresh" class="ghost small">刷新</button>
+        <button id="sec-export" class="ghost small">导出 CSV</button>
+      </div>
+    </div>
     <div class="table-wrap">
-      <table id="tx-table">
-        <thead><tr><th>时间</th><th>币种</th><th>方向</th><th>数量</th><th>价格</th><th>手续费</th><th>成交额</th><th>备注</th></tr></thead>
-        <tbody id="tx-tbody"></tbody>
+      <table id="sec-table">
+        <thead><tr><th>时间</th><th>事件</th><th>详情</th><th>设备</th><th>IP</th></tr></thead>
+        <tbody id="sec-tbody"></tbody>
       </table>
     </div>
   </section>
