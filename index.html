@@ -3,37 +3,78 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>交易日志 · P0 基座</title>
+  <title>交易日志 · P0 Auth+</title>
   <link rel="stylesheet" href="./styles.css" />
-  <!-- Supabase JS v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
   <header class="header">
-    <h1>交易日志 · P0 基座</h1>
+    <h1>交易日志 · P0 Auth+</h1>
     <div id="status" class="banner">初始化中...</div>
   </header>
 
-  <!-- 登录区 -->
+  <!-- 认证区：登录 / 注册 / 忘记密码 / 重置密码 -->
   <section id="auth-section" class="card">
-    <h2>登录</h2>
-    <form id="login-form" class="grid grid-2">
-      <label>邮箱
-        <input type="email" id="email" required placeholder="你在 Supabase 添加的邮箱" />
-      </label>
-      <label>密码
-        <input type="password" id="password" required placeholder="密码" />
-      </label>
-      <button type="submit" id="login-btn" class="primary">登录</button>
-    </form>
+    <nav class="tabs row gap" role="tablist">
+      <button class="tab active" data-tab="login">登录</button>
+      <button class="tab" data-tab="register">注册</button>
+      <button class="tab" data-tab="forgot">忘记密码</button>
+    </nav>
+
+    <div id="tab-login" class="tabpane show">
+      <form id="login-form" class="grid grid-2">
+        <label>邮箱
+          <input type="email" id="login-email" required />
+        </label>
+        <label>密码
+          <input type="password" id="login-password" required />
+        </label>
+        <button type="submit" id="login-btn" class="primary">登录</button>
+      </form>
+    </div>
+
+    <div id="tab-register" class="tabpane">
+      <form id="register-form" class="grid grid-2">
+        <label>邮箱
+          <input type="email" id="reg-email" required />
+        </label>
+        <label>密码
+          <input type="password" id="reg-password" required />
+        </label>
+        <button type="submit" id="reg-btn" class="primary">注册</button>
+      </form>
+      <p class="muted small">提示：若你的 Supabase 开启了邮箱确认，注册后需要去邮箱点击确认链接。</p>
+    </div>
+
+    <div id="tab-forgot" class="tabpane">
+      <form id="forgot-form" class="grid grid-2">
+        <label>邮箱
+          <input type="email" id="forgot-email" required />
+        </label>
+        <button type="submit" id="forgot-btn" class="primary">发送重置密码邮件</button>
+      </form>
+      <p class="muted small">收到邮件后，点击链接会回到本页面，让你设置新密码。</p>
+    </div>
+
+    <!-- 当链接中带有 #access_token 且 type=recovery 时，显示下面的“设置新密码” -->
+    <div id="recovery-pane" class="tabpane hidden">
+      <h3>设置新密码</h3>
+      <form id="recovery-form" class="grid grid-2">
+        <label>新密码
+          <input type="password" id="recovery-password" required />
+        </label>
+        <button type="submit" id="recovery-btn" class="primary">提交新密码</button>
+      </form>
+    </div>
   </section>
 
-  <!-- 应用区 -->
+  <!-- 应用区（登录后可见） -->
   <section id="app-section" class="card hidden">
     <div class="row between">
       <h2>新增交易</h2>
       <div class="row gap">
         <span id="user-email" class="muted"></span>
+        <button id="change-pw-btn">修改密码</button>
         <button id="logout-btn">退出登录</button>
       </div>
     </div>
@@ -98,6 +139,22 @@
       </table>
     </div>
   </section>
+
+  <!-- 修改密码弹窗 -->
+  <dialog id="pw-dialog">
+    <form method="dialog" id="pw-form" class="dialog-form">
+      <h3>修改密码</h3>
+      <div class="grid grid-2">
+        <label>新密码
+          <input type="password" id="pw-new" required />
+        </label>
+      </div>
+      <div class="row gap end">
+        <button value="cancel">取消</button>
+        <button id="pw-save" class="primary" value="default">保存</button>
+      </div>
+    </form>
+  </dialog>
 
   <footer class="footer">
     <span id="build-info" class="muted"></span>

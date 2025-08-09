@@ -1,7 +1,7 @@
-// 已预填你的 Supabase 项目配置
+// 已预填你的 Supabase 项目配置（Auth+ 版）
 window.APP_CONFIG = {
   SUPABASE_URL: "https://lvoawckqgfbdpxufkabx.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2b2F3Y2txZ2ZiZHB4dWZrYWJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ3NjQxMzYsImV4cCI6MjA3MDM0MDEzNn0.b7VmnydzPltH0Z__tRBmtOXRGzlI718CFruSDs95px8",
-  VERSION: "P0",
+  VERSION: "P0-AuthPlus",
   ENV: "dev"
 };
