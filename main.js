@@ -1,286 +1,233 @@
-
-/**
- * P10-AuthNavFinal
- * - 不改 HTML/CSS/后端
- * - 修复：登录后仍停在登录页、侧栏“日志/安全”点击无响应
- * - 保持：hCaptcha 显式渲染、未登录不报错的状态条
- */
-
-(function () {
-  const cfg = (window.APP_CONFIG || {});
-  const supabase = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true }
-  });
-
-  // ---------- DOM helpers ----------
-  const $ = (s, r=document)=>r.querySelector(s);
-  const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
-  const byId = (id)=>document.getElementById(id);
-  const hasText = (el, words)=>{
-    const t = (el.innerText || el.textContent || '').trim();
-    return words.some(w=> t.includes(w));
-  };
-
-  // ---------- Status Banner (quiet) ----------
-  const statusBar = byId("status");
-  function banner(msg, ok=true){
-    if(!statusBar) return;
-    statusBar.textContent = msg;
-    statusBar.style.background = ok ? '#122' : '#2a1111';
-    statusBar.style.color = ok ? '#9fd' : '#f6b';
-  }
-  function bannerQuiet(msg){
-    banner(msg,true);
-    // 1.5s 后淡出（不影响后续 toast）
-    setTimeout(()=>{
-      if(!statusBar) return;
-      statusBar.style.transition = "opacity .35s ease";
-      statusBar.style.opacity = "0";
-      setTimeout(()=>{ if(statusBar){ statusBar.textContent=''; statusBar.style.opacity='1'; statusBar.style.transition=''; } }, 450);
-    }, 1500);
-  }
-
-  // ---------- Sections & Panels ----------
-  const authSection = byId('auth-section');
-  const appSection  = byId('app-section');
-  function showAuth(){
-    if(appSection) appSection.classList.add('hidden');
-    if(authSection) authSection.classList.remove('hidden');
-    bannerQuiet('请先登录');
-  }
-  function showApp(){
-    if(authSection) authSection.classList.add('hidden');
-    if(appSection) appSection.classList.remove('hidden');
-    bannerQuiet('已登录');
-  }
-
-  // 多种选择器兼容：journal/security 面板
-  const journalSelectors = ['#panel-journal','#journal','[data-view-panel="journal"]','[data-panel="journal"]','#tab-journal'];
-  const securitySelectors = ['#panel-security','#security','[data-view-panel="security"]','[data-panel="security"]','#tab-security'];
-  function firstExisting(selList){
-    for(const sel of selList){
-      const el = $(sel);
-      if(el) return el;
+// P10b Full Integration (single-file JS, zero side-effects to HTML/CSS/DB)
+;(function(){
+  const cfg = (window.APP_CONFIG||{});
+  // --- Status banner helpers (quiet by default) ---
+  const statusEl = document.getElementById('status');
+  function banner(msg, ok=true, autoHideMs=1500){
+    if(!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.style.background = ok ? '#122' : '#2a1111';
+    statusEl.style.color = ok ? '#9fd' : '#f6b';
+    if(autoHideMs>0){
+      clearTimeout(banner._t); banner._t = setTimeout(()=>{ statusEl.textContent=''; }, autoHideMs);
     }
+  }
+
+  // --- Single supabase client (avoid multiple instances) ---
+  try{
+    if(!window.SB){
+      if(!window.supabase || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
+        banner('配置未就绪，请刷新或检查 config/config.js', false, 4000);
+      }else{
+        window.SB = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+          auth: { persistSession: true, autoRefreshToken: true }
+        });
+      }
+    }
+  }catch(e){ console.error('createClient failed', e); }
+
+  const SB = window.SB;
+
+  // --- Find containers (robust selectors) ---
+  function getAuthBox(){
+    // Prefer parent of #login-form; fallback to panel-auth / tab-login etc.
+    const lf = document.getElementById('login-form');
+    if(lf){ const box = lf.closest('section,form,div,article,main'); if(box) return box; }
+    const byId = document.querySelector('#panel-auth, #auth-section, #tab-login, [id*="auth" i]');
+    if(byId) return byId.closest('section,div,main,article') || byId;
+    // last resort: the first form that contains email+password
+    const email = document.querySelector('input[type="email"], input[name*="email" i]');
+    const pass  = document.querySelector('input[type="password"], input[name*="pass" i]');
+    if(email && pass){ return email.closest('section,form,div,article,main'); }
     return null;
   }
-  function switchPanel(name){
-    const isJournal = (name === 'journal');
-    const journal = firstExisting(journalSelectors);
-    const security = firstExisting(securitySelectors);
-    if(!journal && !security) return; // 沉默失败，不影响其他逻辑
 
-    // 隐藏所有可能面板
-    [...new Set([...journalSelectors, ...securitySelectors])]
-      .forEach(sel=> $$(sel).forEach(el=> el.classList.add('hidden')));
-
-    if(isJournal && journal) journal.classList.remove('hidden');
-    if(!isJournal && security) security.classList.remove('hidden');
-    try{ localStorage.setItem('tj_last_panel', isJournal?'journal':'security'); }catch{}
+  function getPanels(){
+    const j = document.getElementById('panel-journal') || document.querySelector('[data-panel="journal"], [data-view="journal"], #journal');
+    const s = document.getElementById('panel-security') || document.querySelector('[data-panel="security"], [data-view="security"], #security');
+    return { j, s };
   }
-
-  // ---------- Tabs (login/register/forgot) 显示策略：默认只显示登录 ----------
-  function activateAuthTab(tab){ // 'login'|'register'|'forgot'|'mfa'
-    $$('.tab').forEach(b=>b.classList.remove('active'));
-    $$('.tabpane').forEach(p=>p.classList.remove('show'));
-    const btn = $(`.tab[data-tab="${tab}"]`);
-    const pane = byId(`tab-${tab}`);
-    if(btn) btn.classList.add('active');
-    if(pane) pane.classList.add('show');
-    // 切换后确保 captcha 渲染
-    setTimeout(renderCaptchas, 80);
-  }
-  // 隐藏顶部 tab 按钮，改为底部小字切换（不改 HTML 结构，仅控制显示）
-  function installAuthLinks(){
-    const loginPane = byId('tab-login');
-    const registerPane = byId('tab-register');
-    if(loginPane && !loginPane.querySelector('.swap-to-register')){
-      const p = document.createElement('p');
-      p.className = 'muted small swap-to-register';
-      p.style.marginTop = '8px';
-      p.innerHTML = '没有账号？<a href="#" id="go-register">去注册</a>';
-      loginPane.appendChild(p);
+  function getAppBox(){
+    const {j,s} = getPanels();
+    if(j && s){
+      // common parent
+      const jp = j.closest('section,div,main,article')||j.parentElement;
+      const sp = s.closest('section,div,main,article')||s.parentElement;
+      return jp===sp ? jp : (jp || sp);
     }
-    if(registerPane && !registerPane.querySelector('.swap-to-login')){
-      const p = document.createElement('p');
-      p.className = 'muted small swap-to-login';
-      p.style.marginTop = '8px';
-      p.innerHTML = '已有账号？<a href="#" id="go-login">去登录</a>';
-      registerPane.appendChild(p);
-    }
+    // fallback to any table area
+    const table = document.getElementById('tx-table') || document.querySelector('.table-wrap table, table');
+    if(table){ return table.closest('section,div,main,article'); }
+    return null;
   }
 
-  // ---------- hCaptcha 显式渲染（保持现有 SiteKey 用法） ----------
-  const HKEY = (cfg && cfg.HCAPTCHA_SITEKEY) || '';
-  let widgetIds = {}, hLoaded = false;
-  window.hcaptchaOnLoad = function(){
-    hLoaded = true;
-    renderCaptchas();
-  };
+  function showAuth(){
+    const a = getAuthBox(); const app = getAppBox();
+    if(a){ a.classList.remove('hidden'); if(a.style) a.style.display=''; }
+    if(app){ app.classList.add('hidden'); if(app.style) app.style.display='none'; }
+    banner('请先登录');
+  }
+  function showApp(){
+    const a = getAuthBox(); const app = getAppBox();
+    if(app){ app.classList.remove('hidden'); if(app.style) app.style.display=''; }
+    if(a){ a.classList.add('hidden'); if(a.style) a.style.display='none'; }
+    banner('已登录', true);
+  }
+  function switchPanel(key){
+    const {j,s} = getPanels(); if(!j && !s) return;
+    const map = {journal:j, security:s};
+    Object.entries(map).forEach(([k,el])=>{
+      if(!el) return;
+      const show = (k===key);
+      el.classList.toggle('hidden', !show);
+      if(el.style){ el.style.display = show ? '' : 'none'; }
+    });
+  }
+
+  // --- hCaptcha explicit rendering (stable) ---
+  let hLoaded=false, widgetIds={};
+  window.hcaptchaOnLoad = function(){ hLoaded=true; renderCaptchas(); };
   function renderOne(id){
-    // 只在可见时渲染；已渲染则 reset
-    if(!hLoaded || !window.hcaptcha) return;
-    const el = byId(id);
-    if(!el) return;
-    if(el.offsetParent === null || el.clientHeight === 0){
-      setTimeout(()=>renderOne(id), 120);
-      return;
-    }
-    el.setAttribute('data-sitekey', HKEY);
-    if(widgetIds[id] != null){
-      try { window.hcaptcha.reset(widgetIds[id]); } catch {}
-      return;
-    }
+    const el = document.getElementById(id); if(!el) return;
+    if(!hLoaded || !window.hcaptcha){ setTimeout(()=>renderOne(id), 120); return; }
+    if(el.offsetParent===null || el.clientHeight===0){ setTimeout(()=>renderOne(id), 120); return; }
     try{
-      widgetIds[id] = window.hcaptcha.render(id);
-    }catch{ /* ignore */ }
-  }
-  function renderCaptchas(){
-    ['captcha-login','captcha-register','captcha-forgot'].forEach(renderOne);
-  }
-
-  // ---------- Auth flows ----------
-  async function boot(){
-    try{
-      const { data: { user } } = await supabase.auth.getUser();
-      if(user){
-        showApp();
-        // 打开最近一次面板（默认 journal）
-        let last = 'journal';
-        try{ last = localStorage.getItem('tj_last_panel') || 'journal'; }catch{}
-        switchPanel(last);
+      if(widgetIds[id]!==undefined){
+        window.hcaptcha.reset(widgetIds[id]);
       }else{
-        showAuth();
-        activateAuthTab('login');
+        if(cfg.HCAPTCHA_SITEKEY) el.setAttribute('data-sitekey', cfg.HCAPTCHA_SITEKEY);
+        widgetIds[id] = window.hcaptcha.render(id);
       }
-    }catch(e){
-      // 真异常才报红
-      banner('初始化失败：'+(e.message||'未知'), false);
+    }catch(e){ console.warn('captcha render fail', id, e); }
+  }
+  function renderCaptchas(){ ['captcha-login','captcha-register','captcha-forgot'].forEach(renderOne); }
+  function getCaptchaToken(id){
+    if(!hLoaded || !window.hcaptcha) return '';
+    const wid = widgetIds[id]; if(wid===undefined) return '';
+    return window.hcaptcha.getResponse(wid)||'';
+  }
+  // re-check on tab/link navigations
+  setTimeout(renderCaptchas, 80);
+
+  // --- Auth flows: login/register/forgot (if forms exist) ---
+  function tryBindAuthForms(){
+    const loginForm = document.getElementById('login-form');
+    if(loginForm && !loginForm._bound){
+      loginForm._bound = true;
+      loginForm.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        if(!SB) return banner('配置未就绪', false, 3000);
+        const token = getCaptchaToken('captcha-login');
+        if(!token) return banner('请先完成验证码', false, 2000);
+        const email = (document.getElementById('login-email')||{}).value||'';
+        const password = (document.getElementById('login-password')||{}).value||'';
+        const { error } = await SB.auth.signInWithPassword({ email, password, options:{ captchaToken: token }});
+        if(error){ banner('登录失败：'+error.message, false, 3000); return; }
+        // immediate UI switch
+        showApp(); switchPanel('journal');
+      });
+    }
+    const regForm = document.getElementById('register-form');
+    if(regForm && !regForm._bound){
+      regForm._bound = true;
+      regForm.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        if(!SB) return banner('配置未就绪', false, 3000);
+        const token = getCaptchaToken('captcha-register');
+        if(!token) return banner('请先完成验证码', false, 2000);
+        const email = (document.getElementById('reg-email')||{}).value||'';
+        const p1 = (document.getElementById('reg-password')||{}).value||'';
+        const p2 = (document.getElementById('reg-password2')||{}).value||'';
+        if(p1!==p2) return banner('两次密码不一致', false, 2000);
+        const redirectTo = location.origin + location.pathname;
+        const { error } = await SB.auth.signUp({ email, password:p1, options:{ emailRedirectTo: redirectTo, captchaToken: token }});
+        if(error) return banner('注册失败：'+error.message, false, 3000);
+        banner('注册成功，请到邮箱完成验证后再登录。', true, 3000);
+      });
+    }
+    const forgotForm = document.getElementById('forgot-form');
+    if(forgotForm && !forgotForm._bound){
+      forgotForm._bound = true;
+      forgotForm.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        if(!SB) return banner('配置未就绪', false, 3000);
+        const token = getCaptchaToken('captcha-forgot');
+        if(!token) return banner('请先完成验证码', false, 2000);
+        const email = (document.getElementById('forgot-email')||{}).value||'';
+        const redirectTo = location.origin + location.pathname;
+        const { error } = await SB.auth.resetPasswordForEmail(email, { redirectTo, captchaToken: token });
+        if(error) return banner('发送失败：'+error.message, false, 3000);
+        banner('已发送重置密码邮件，请查收。', true, 2000);
+      });
     }
   }
+  tryBindAuthForms();
 
-  // Auth 状态监听 + 兜底轮询
-  supabase.auth.onAuthStateChange((ev, session)=>{
-    if(ev === 'SIGNED_IN' || ev === 'TOKEN_REFRESHED'){
-      showApp();
-      switchPanel('journal');
+  // --- Global navigation delegation (sidebar + tabs) ---
+  document.addEventListener('click', async (e)=>{
+    const t = e.target.closest('[data-view],[data-panel],#nav-journal,#nav-security,.nav-item,a,button,div,li,span');
+    if(!t) return;
+    const text = (t.textContent||'').trim();
+    let key = (t.dataset.view||t.dataset.panel||t.id||'').toLowerCase();
+    if(!/journal|security/.test(key)){
+      if(/日志/.test(text)) key='journal';
+      else if(/安全/.test(text)) key='security';
+      else return;
     }
-    if(ev === 'SIGNED_OUT'){
-      showAuth();
-      activateAuthTab('login');
+    // require login
+    if(SB){
+      const { data:{ user } } = await SB.auth.getUser();
+      if(!user){ banner('请先登录', true, 1500); showAuth(); return; }
     }
-  });
-  // 兜底：短暂轮询，确保登录后一定切换
-  (function ensureBootAfterSignIn(){
-    let tries = 0;
-    const t = setInterval(async ()=>{
-      tries++;
-      const { data: { user } } = await supabase.auth.getUser();
-      if(user){ clearInterval(t); showApp(); switchPanel('journal'); }
-      if(tries > 10) clearInterval(t); // 最多约15秒
-    }, 1500);
+    showApp(); switchPanel(key);
+  }, {capture:true});
+
+  // --- Auth state & boot with triple guarantees ---
+  async function boot(){
+    if(!SB){ showAuth(); return; }
+    const { data:{ user } } = await SB.auth.getUser();
+    if(user){ showApp(); switchPanel('journal'); }
+    else { showAuth(); }
+    // render captchas after visibility changes
+    setTimeout(renderCaptchas, 100);
+  }
+
+  // on state change
+  if(SB && !window.__onAuthBound){
+    window.__onAuthBound = true;
+    SB.auth.onAuthStateChange((ev)=>{
+      if(ev==='SIGNED_IN'){ showApp(); switchPanel('journal'); }
+      if(ev==='SIGNED_OUT'){ showAuth(); }
+    });
+  }
+
+  // fallback: poll until user detected (max ~12s)
+  (function poll(i=0){
+    if(i>24) return; // 24 * 500ms = 12s
+    if(!SB){ setTimeout(()=>poll(i+1), 500); return; }
+    SB.auth.getUser().then(({data:{user}})=>{
+      if(user){ showApp(); switchPanel('journal'); }
+      else if(i===0){ showAuth(); }
+      if(!user) setTimeout(()=>poll(i+1), 500);
+    }).catch(()=> setTimeout(()=>poll(i+1), 500));
   })();
 
-  // ---------- Global Click Delegation ----------
-  document.addEventListener('click', (e)=>{
-    const a = e.target.closest('a,button,[role="button"],.tab,[data-nav],[data-view],[data-panel]');
-    if(!a) return;
+  // initial kick
+  setTimeout(boot, 50);
 
-    // 认证区切换（小链接）
-    if(a.id === 'go-register'){ e.preventDefault(); activateAuthTab('register'); return; }
-    if(a.id === 'go-login'){ e.preventDefault(); activateAuthTab('login'); return; }
-
-    // 顶部 tab（如果仍保留）
-    if(a.classList.contains('tab') && a.dataset.tab){
-      e.preventDefault();
-      activateAuthTab(a.dataset.tab);
-      return;
-    }
-
-    // 侧栏导航：日志/安全
-    const navKey = (a.getAttribute('data-view') || a.getAttribute('data-panel') || a.id || '').toLowerCase();
-    let targetName = null;
-    if(navKey.includes('journal')) targetName = 'journal';
-    else if(navKey.includes('security') || navKey.includes('safe')) targetName = 'security';
-    else if(hasText(a, ['日志'])) targetName = 'journal';
-    else if(hasText(a, ['安全'])) targetName = 'security';
-
-    if(targetName){
-      e.preventDefault();
-      // 未登录不允许切换业务面板
-      supabase.auth.getUser().then(({data:{user}})=>{
-        if(!user){ bannerQuiet('请先登录'); activateAuthTab('login'); return; }
-        switchPanel(targetName);
+  // --- small utilities ---
+  // Compute amount auto (if inputs exist)
+  ['qty','price','fee'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el && !el._bound){
+      el._bound = true;
+      el.addEventListener('input', ()=>{
+        const q = parseFloat((document.getElementById('qty')||{}).value)||0;
+        const p = parseFloat((document.getElementById('price')||{}).value)||0;
+        const f = parseFloat((document.getElementById('fee')||{}).value)||0;
+        const out = document.getElementById('amount'); if(out) out.value = (q*p+f)||'';
       });
     }
   });
 
-  // ---------- Forms (登录/注册/忘记) ----------
-  function captchaToken(id){
-    if(!hLoaded || !window.hcaptcha || widgetIds[id]==null) return '';
-    return window.hcaptcha.getResponse(widgetIds[id]);
-  }
-
-  const loginForm = byId('login-form');
-  if(loginForm){
-    loginForm.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const token = captchaToken('captcha-login');
-      if(!token){ banner('请先完成验证码', false); return; }
-      const email = byId('login-email')?.value?.trim();
-      const password = byId('login-password')?.value;
-      const { error } = await supabase.auth.signInWithPassword({ email, password, options:{ captchaToken: token } });
-      if(error){ banner('登录失败：'+error.message, false); return; }
-      // 立即切换，另有 onAuthStateChange/轮询双保险
-      showApp(); switchPanel('journal');
-    });
-  }
-
-  const regForm = byId('register-form');
-  if(regForm){
-    regForm.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const token = captchaToken('captcha-register');
-      if(!token){ banner('请先完成验证码', false); return; }
-      const email = byId('reg-email')?.value?.trim();
-      const p1 = byId('reg-password')?.value;
-      const p2 = byId('reg-password2')?.value;
-      if(p1 !== p2){ banner('两次密码不一致', false); return; }
-      const redirectTo = location.origin + location.pathname;
-      const { error } = await supabase.auth.signUp({ email, password: p1, options:{ emailRedirectTo: redirectTo, captchaToken: token } });
-      if(error){ banner('注册失败：'+error.message, false); return; }
-      bannerQuiet('注册成功，请到邮箱完成验证');
-      activateAuthTab('login');
-    });
-  }
-
-  const forgotForm = byId('forgot-form');
-  if(forgotForm){
-    forgotForm.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const token = captchaToken('captcha-forgot');
-      if(!token){ banner('请先完成验证码', false); return; }
-      const email = byId('forgot-email')?.value?.trim();
-      const redirectTo = location.origin + location.pathname;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo, captchaToken: token });
-      if(error){ banner('发送失败：'+error.message, false); return; }
-      bannerQuiet('已发送重置密码邮件');
-    });
-  }
-
-  // ---------- Kickoff ----------
-  // 初始默认显示登录（未登录）
-  activateAuthTab('login');
-  installAuthLinks();
-
-  // Captcha onload handled by global callback; add timeout fallback
-  setTimeout(()=>{ if(!hLoaded) renderCaptchas(); }, 1200);
-
-  // 初始 quiet 提示；2.5s 兜底从“初始化中”切换
-  setTimeout(()=>{
-    bannerQuiet('请先登录');
-  }, 2500);
-
-  // 首次启动
-  boot();
 })();
