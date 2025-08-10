@@ -1,119 +1,182 @@
+// M2-Front CRUD Pack — safe attach, no HTML changes required.
+// Uses window.APP_CONFIG.{SUPABASE_URL,SUPABASE_ANON_KEY}.
+// Graceful if DOM nodes are missing.
 
-// P8 rollback base - stable auth gating + hCaptcha + magic link + verify resend
-const cfg = window.APP_CONFIG||{};
-const supabase = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth:{ persistSession:true, autoRefreshToken:true }});
-const $ = s=>document.querySelector(s);
-const statusBar = $("#status");
-function say(msg, ok=true, ms=1500){ if(!statusBar) return; statusBar.textContent=msg; statusBar.style.background= ok?'#122':'#2a1111'; statusBar.style.color=ok?'#9fd':'#f6b'; if(ms){ setTimeout(()=>statusBar.textContent='', ms); }}
+(() => {
+  const log = (...a)=>console.log('[M2-Front]', ...a);
+  const err = (...a)=>console.error('[M2-Front]', ...a);
 
-// tabs
-document.querySelectorAll(".tab").forEach(btn=>{
-  btn.addEventListener("click", ()=>{
-    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
-    document.querySelectorAll(".tabpane").forEach(p=>p.classList.remove("show"));
-    btn.classList.add("active");
-    $("#tab-"+btn.dataset.tab).classList.add("show");
-    setTimeout(renderCaptchas, 80);
-  });
-});
+  // 1) Init Supabase
+  const APP = window.APP_CONFIG || {};
+  if (!APP.SUPABASE_URL || !APP.SUPABASE_ANON_KEY) {
+    err('Missing APP_CONFIG.SUPABASE_URL or SUPABASE_ANON_KEY');
+    return;
+  }
+  const SB = window.supabase?.createClient(APP.SUPABASE_URL, APP.SUPABASE_ANON_KEY);
+  if (!SB) { err('Supabase JS not loaded'); return; }
+  window.__SB = SB; // expose for debugging
 
-// hCaptcha explicit
-let widgetIds={}, hLoaded=false;
-window.hcaptchaOnLoad=()=>{ hLoaded=true; renderCaptchas(); };
-function renderOne(id){
-  const el=document.getElementById(id); if(!el) return;
-  if(!hLoaded||!window.hcaptcha){ setTimeout(()=>renderOne(id),120); return; }
-  if(el.offsetParent===null || el.clientHeight===0){ setTimeout(()=>renderOne(id),120); return; }
-  if(widgetIds[id]!==undefined){ try{window.hcaptcha.reset(widgetIds[id]);}catch{} return; }
-  if(cfg.HCAPTCHA_SITEKEY) el.setAttribute('data-sitekey', cfg.HCAPTCHA_SITEKEY);
-  widgetIds[id]=window.hcaptcha.render(id);
-}
-function renderCaptchas(){ ['captcha-login','captcha-register','captcha-forgot'].forEach(renderOne); }
-function tokenOf(id){ if(!hLoaded||!window.hcaptcha) return ''; const wid=widgetIds[id]; if(wid===undefined) return ''; return window.hcaptcha.getResponse(wid)||''; }
+  // 2) Minimal helpers
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const byId = id => document.getElementById(id);
 
-// boot
-async function boot(){
-  const { data:{ user } } = await supabase.auth.getUser();
-  if(user){ $("#auth-section").classList.add("hidden"); $("#app-section").classList.remove("hidden"); $("#user-email").textContent=user.email||''; }
-  else { $("#app-section").classList.add("hidden"); $("#auth-section").classList.remove("hidden"); }
-  setTimeout(renderCaptchas, 100);
-  say(user?'已登录':'请先登录');
-}
-setTimeout(boot, 50);
-supabase.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'){ boot(); } if(ev==='SIGNED_OUT'){ boot(); } });
-
-// login
-$("#login-form").addEventListener("submit", async (e)=>{
-  e.preventDefault();
-  const token=tokenOf('captcha-login'); if(!token) return say('请先完成验证码', false, 2000);
-  const email=$("#login-email").value.trim(); const password=$("#login-password").value;
-  const { error } = await supabase.auth.signInWithPassword({ email, password, options:{ captchaToken: token }});
-  if(error) return say('登录失败：'+error.message, false, 3000);
-  say('登录成功'); boot();
-});
-
-// magic link
-document.getElementById('btn-magic').addEventListener('click', async ()=>{
-  const email = prompt("输入邮箱（将发送登录链接）"); if(!email) return;
-  const redirectTo = location.origin + location.pathname;
-  const { error } = await supabase.auth.signInWithOtp({ email, options:{ emailRedirectTo: redirectTo }});
-  if(error) return say('发送失败：'+error.message, false, 3000);
-  say('已发送登录链接，请查收');
-});
-
-// register
-$("#register-form").addEventListener("submit", async (e)=>{
-  e.preventDefault();
-  const token=tokenOf('captcha-register'); if(!token) return say('请先完成验证码', false, 2000);
-  const email=$("#reg-email").value.trim();
-  const p1=$("#reg-password").value, p2=$("#reg-password2").value;
-  if(p1!==p2) return say('两次密码不一致', false, 2000);
-  const redirectTo=location.origin+location.pathname;
-  const { error } = await supabase.auth.signUp({ email, password:p1, options:{ emailRedirectTo: redirectTo, captchaToken: token }});
-  if(error) return say('注册失败：'+error.message, false, 3000);
-  say('注册成功，请到邮箱完成验证后再登录。', true, 3000);
-});
-
-// forgot
-$("#forgot-form").addEventListener("submit", async (e)=>{
-  e.preventDefault();
-  const token=tokenOf('captcha-forgot'); if(!token) return say('请先完成验证码', false, 2000);
-  const email=$("#forgot-email").value.trim();
-  const redirectTo=location.origin+location.pathname;
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo, captchaToken: token });
-  if(error) return say('发送失败：'+error.message, false, 3000);
-  say('已发送重置邮件，请查收。', true, 2000);
-});
-
-// verify banner + resend
-function setupResend(email){
-  const btn=$("#resend-btn"), tip=$("#resend-tip"); if(!btn) return;
-  let remain = parseInt(localStorage.getItem("tj_resend_cooldown")||"0",10);
-  const tick = ()=>{
-    if(remain>0){ btn.disabled=true; tip.textContent=`${remain}s 后可再次发送`; remain--; localStorage.setItem("tj_resend_cooldown", remain); setTimeout(tick,1000); }
-    else { btn.disabled=false; tip.textContent=''; localStorage.removeItem("tj_resend_cooldown"); }
+  const ui = {
+    table: byId('tx-table') || $('table#tx-table'),
+    tbody: $('#tx-table tbody'),
+    form: byId('tx-form') || $('form#tx-form'),
+    inputs: {
+      symbol: byId('tx-symbol'),
+      side: byId('tx-side'),
+      qty: byId('tx-qty'),
+      price: byId('tx-price'),
+      fee: byId('tx-fee'),
+      note: byId('tx-note'),
+      ts: byId('tx-ts')
+    },
+    saveBtn: byId('save-btn'),
+    status: byId('status') || $('.banner')
   };
-  tick();
-  btn.onclick = async ()=>{
-    if(btn.disabled) return;
-    try{
-      const { data:{ user } } = await supabase.auth.getUser(); const email=user?.email;
-      const { error } = await supabase.auth.resend({ type:'signup', email, options:{ emailRedirectTo: location.origin+location.pathname }});
-      if(error) throw error;
-      say('已发送验证邮件，请查收'); remain=60; tick();
-    }catch(err){ say('发送失败：'+err.message, false, 3000); }
+
+  const toast = (msg, ok=true) => {
+    if (ui.status) {
+      ui.status.textContent = msg;
+      ui.status.style.opacity = 1;
+      ui.status.style.color = ok ? '#25d695' : '#ff5d7a';
+      setTimeout(()=>{ ui.status.style.opacity = 0.9; }, 1800);
+    } else {
+      ok ? log(msg) : err(msg);
+    }
   };
-}
 
-document.getElementById('logout-btn').addEventListener('click', async ()=>{
-  await supabase.auth.signOut(); say('已退出'); boot();
-});
+  // 3) Auth guard
+  async function getUser() {
+    const { data: { user }, error } = await SB.auth.getUser();
+    if (error) { err('auth.getUser error', error); }
+    return user || null;
+  }
 
-// compute amount
-['qty','price','fee'].forEach(id=>{
-  const el = document.getElementById(id);
-  if(el) el.addEventListener('input', ()=>{
-    const q=parseFloat($("#qty").value)||0, p=parseFloat($("#price").value)||0, f=parseFloat($("#fee").value)||0;
-    const out=$("#amount"); if(out) out.value = (q*p+f)||'';
-  });
-});
+  // 4) CRUD
+  async function loadTrades(limit=200) {
+    const user = await getUser();
+    if (!user) { toast('请先登录。', false); return []; }
+    const { data, error } = await SB
+      .from('trades')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('ts', { ascending: false })
+      .limit(limit);
+    if (error) { err('loadTrades', error); toast('加载交易失败', false); return []; }
+    renderTable(data||[]);
+    return data||[];
+  }
+
+  async function saveTrade(payload) {
+    const user = await getUser();
+    if (!user) { toast('未登录，无法保存。', false); return; }
+    const row = Object.assign({
+      user_id: user.id,
+      ts: new Date().toISOString(),
+      symbol: '',
+      side: 'buy',
+      qty: 0,
+      price: 0,
+      fee: 0,
+      note: ''
+    }, payload||{});
+    const { error } = await SB.from('trades').insert(row);
+    if (error) { err('saveTrade', error); toast('保存失败：'+error.message, false); return; }
+    toast('已保存');
+    await loadTrades();
+  }
+
+  async function deleteTrade(id) {
+    const user = await getUser();
+    if (!user) { toast('未登录，无法删除。', false); return; }
+    const { error } = await SB
+      .from('trades')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+    if (error) { err('deleteTrade', error); toast('删除失败：'+error.message, false); return; }
+    toast('已删除');
+    if (ui.tbody) {
+      const tr = ui.tbody.querySelector(`tr[data-id="${id}"]`);
+      if (tr) tr.remove();
+    } else {
+      await loadTrades();
+    }
+  }
+
+  // 5) Render
+  function renderTable(rows) {
+    if (!ui.table) return;
+    if (!ui.tbody) {
+      // Create a tbody if missing
+      const tb = document.createElement('tbody');
+      ui.table.appendChild(tb);
+      ui.tbody = tb;
+    }
+    ui.tbody.innerHTML = '';
+    if (!rows.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 8;
+      td.textContent = '暂无记录';
+      tr.appendChild(td);
+      ui.tbody.appendChild(tr);
+      return;
+    }
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      tr.dataset.id = r.id;
+      tr.innerHTML = `
+        <td>${new Date(r.ts).toLocaleString()}</td>
+        <td>${r.symbol||''}</td>
+        <td>${r.side||''}</td>
+        <td class="num">${Number(r.qty||0).toFixed(6)}</td>
+        <td class="num">${Number(r.price||0).toFixed(2)}</td>
+        <td class="num">${Number(r.fee||0).toFixed(6)}</td>
+        <td>${r.note||''}</td>
+        <td><button class="btn btn-del" data-id="${r.id}">删除</button></td>
+      `.trim();
+      ui.tbody.appendChild(tr);
+    }
+    // bind delete
+    $$('.btn-del', ui.tbody).forEach(b=>{
+      b.addEventListener('click', e=>{
+        const id = b.getAttribute('data-id');
+        if (id) deleteTrade(id);
+      });
+    });
+  }
+
+  // 6) Hook form if exists
+  function attachForm() {
+    if (!ui.form) return;
+    ui.form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const v = k => ui.inputs[k] && ui.inputs[k].value;
+      const payload = {
+        ts: v('ts') ? new Date(v('ts')).toISOString() : new Date().toISOString(),
+        symbol: (v('symbol')||'').trim().toUpperCase(),
+        side: (v('side')||'buy').toLowerCase(),
+        qty: Number(v('qty')||0),
+        price: Number(v('price')||0),
+        fee: Number(v('fee')||0),
+        note: v('note')||''
+      };
+      await saveTrade(payload);
+      // reset minimal
+      if (ui.form.reset) ui.form.reset();
+    });
+  }
+
+  // 7) Initial kick
+  window.TradesAPI = { loadTrades, saveTrade, deleteTrade }; // for debugging
+  attachForm();
+  // Try autoload on login state present
+  getUser().then(u => { if (u) loadTrades(); });
+
+  log('initialized');
+})();
