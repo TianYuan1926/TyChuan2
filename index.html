@@ -3,29 +3,114 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>交易日志 · P8 稳定基座</title>
+  <title>交易日志 · P8 稳定基座（UI整合修复）</title>
 
-  <!-- 样式顺序：tokens → 主样式 → step3 → step4 -->
+  <!-- 样式顺序：tokens → 主样式（含 Step3+Step4 整合） -->
   <link rel="stylesheet" href="./styles.tokens.css">
   <link rel="stylesheet" href="./styles.css">
-  <link rel="stylesheet" href="./styles.navlayout.addon.css">
-  <link rel="stylesheet" href="./styles.forms.addon.css">
 
-  <!-- 依赖脚本 -->
+  <!-- 依赖脚本（与你之前一致） -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
 </head>
 <body>
-  <div id="status" class="status-bar" aria-live="polite"></div>
+  <header class="header">
+    <h1>交易日志</h1>
+    <div id="status" class="status-bar" aria-live="polite"></div>
+  </header>
 
-  <!-- 你的现有内容保持不变，这里只演示结构占位 -->
-  <header class="header"><h1>交易日志</h1></header>
-  <main id="app-root">
-    <!-- 登录/注册/忘记密码等区块请保留你现有 DOM -->
-    <section id="panel-journal" data-panel="journal"></section>
-    <section id="panel-security" data-panel="security"></section>
+  <main class="wrap">
+    <!-- 认证区（登录默认展示，注册/忘记通过上方标签切换；与P8结构兼容） -->
+    <section id="auth-section" class="card">
+      <nav class="tabs row gap">
+        <button class="tab active" data-tab="login">登录</button>
+        <button class="tab" data-tab="register">注册</button>
+        <button class="tab" data-tab="forgot">忘记密码</button>
+      </nav>
+
+      <!-- 登录 -->
+      <div id="tab-login" class="tabpanel show">
+        <form id="login-form" class="form grid grid-2" autocomplete="on">
+          <label class="field"><span>邮箱</span>
+            <input type="email" id="login-email" required placeholder="you@example.com" />
+          </label>
+          <label class="field"><span>密码</span>
+            <input type="password" id="login-password" required placeholder="••••••••" />
+          </label>
+          <div class="captcha-wrap"><div id="captcha-login" class="captcha-box" data-theme="dark"></div></div>
+          <div class="actions">
+            <button id="btn-login" class="btn primary">登录</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 注册 -->
+      <div id="tab-register" class="tabpanel">
+        <form id="register-form" class="form grid grid-2" autocomplete="on">
+          <label class="field"><span>邮箱</span>
+            <input type="email" id="reg-email" required />
+          </label>
+          <label class="field"><span>密码</span>
+            <input type="password" id="reg-password" required />
+          </label>
+          <label class="field"><span>确认密码</span>
+            <input type="password" id="reg-password2" required />
+          </label>
+          <div class="captcha-wrap"><div id="captcha-register" class="captcha-box" data-theme="dark"></div></div>
+          <div class="actions">
+            <button id="btn-register" class="btn primary">注册</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 忘记密码 -->
+      <div id="tab-forgot" class="tabpanel">
+        <form id="forgot-form" class="form grid grid-1" autocomplete="on">
+          <label class="field"><span>邮箱</span>
+            <input type="email" id="forgot-email" required />
+          </label>
+          <div class="captcha-wrap"><div id="captcha-forgot" class="captcha-box" data-theme="dark"></div></div>
+          <div class="actions">
+            <button id="btn-forgot" class="btn">发送重置邮件</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 应用区（登录后显示） -->
+    <section id="app-section" class="card hidden">
+      <aside class="sidebar">
+        <div class="item" id="nav-journal" data-view="journal">日志</div>
+        <div class="item" id="nav-security" data-view="security">安全</div>
+      </aside>
+
+      <section id="panel-journal" data-panel="journal">
+        <h2>交易记录</h2>
+        <form id="tx-form" class="form grid grid-2">
+          <label class="field"><span>币种</span><input id="asset" placeholder="BTC/ETH..." /></label>
+          <label class="field"><span>数量</span><input id="qty" type="number" step="any" /></label>
+          <label class="field"><span>价格</span><input id="price" type="number" step="any" /></label>
+          <label class="field"><span>手续费</span><input id="fee" type="number" step="any" /></label>
+          <label class="field"><span>金额</span><input id="amount" type="number" step="any" readonly /></label>
+          <div class="actions"><button id="save-btn" class="btn primary">保存记录</button></div>
+        </form>
+
+        <div class="table-wrap">
+          <table id="tx-table">
+            <thead><tr><th>时间</th><th>币种</th><th>数量</th><th>价格</th><th>费用</th><th>金额</th></tr></thead>
+            <tbody><!-- 数据行由JS填充 --></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="panel-security" data-panel="security" class="hidden">
+        <h2>安全</h2>
+        <p>这里显示安全设置、2FA等（占位）。</p>
+      </section>
+    </section>
   </main>
 
+  <!-- 你的主脚本（保持原文件名不变） -->
   <script src="./main.js"></script>
 </body>
 </html>
