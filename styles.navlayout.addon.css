@@ -1,0 +1,128 @@
+/* P8-UI-Step3-NavLayout-Reloaded — additive stylesheet (safe to include after your styles.css)
+   - Only adds/overrides nav + layout visuals
+   - Uses CSS variables from styles.tokens.css with safe fallbacks
+*/
+
+:root{
+  --ui-bg: var(--bg, #0b1220);
+  --ui-panel: var(--panel, #111a2b);
+  --ui-panel-2: var(--panel-2, #0e1626);
+  --ui-brand: var(--brand, #3dd6d0);
+  --ui-brand-2: var(--brand-2, #25a9a4);
+  --ui-text: var(--text, #e6f0ff);
+  --ui-text-2: var(--text-2, #b8c3d9);
+  --ui-muted: var(--muted, #90a0bb);
+  --ui-r: var(--r, 14px);
+  --ui-space: var(--space, 16px);
+  --ui-space-lg: var(--space-lg, 24px);
+  --ui-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.35));
+  --ui-ease: var(--easing, cubic-bezier(.2,.8,.2,1));
+  --ui-dur: var(--dur, 220ms);
+  --ui-dur-fast: var(--dur-fast, 120ms);
+}
+
+/* --- Sidebar Nav (兼容多种结构) --- */
+.sidebar .item,
+.nav .item,
+.menu a, .menu button,
+[data-view], #nav-journal, #nav-security {
+  display: block;
+  padding: calc(var(--ui-space) * .75) var(--ui-space);
+  margin: 6px 8px;
+  border-radius: var(--ui-r);
+  color: var(--ui-text-2);
+  text-decoration: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.0));
+  transition: transform var(--ui-dur-fast) var(--ui-ease), 
+              box-shadow var(--ui-dur-fast) var(--ui-ease),
+              color var(--ui-dur-fast) var(--ui-ease),
+              background var(--ui-dur-fast) var(--ui-ease);
+  cursor: pointer;
+  user-select: none;
+}
+.sidebar .item:hover,
+.nav .item:hover,
+.menu a:hover, .menu button:hover,
+[data-view]:hover, #nav-journal:hover, #nav-security:hover {
+  color: var(--ui-text);
+  box-shadow: 0 6px 16px rgba(0,0,0,.32);
+  background: linear-gradient(180deg, rgba(61,214,208,0.12), rgba(61,214,208,0.04));
+  transform: translateY(-1px);
+}
+/* 当前项高亮（如已有 .active 或 aria-current），否则可在JS里给当前项加 .active */
+.sidebar .item.active,
+.nav .item.active,
+.menu a[aria-current="page"],
+#nav-journal.active, #nav-security.active {
+  color: var(--ui-text);
+  background: linear-gradient(180deg, rgba(61,214,208,0.16), rgba(61,214,208,0.06));
+  box-shadow: inset 0 0 0 1px rgba(61,214,208,.45), 0 8px 22px rgba(0,0,0,.35);
+}
+
+/* clickable area inside nav item */
+.sidebar .item > *, .nav .item > *, .menu a > *, .menu button > * { pointer-events: none; }
+
+/* --- Main content card spacing --- */
+.main, main, .wrap, .content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--ui-space-lg);
+}
+.card, .panel, section.card, .panel-card {
+  background: var(--ui-panel);
+  border-radius: var(--ui-r);
+  box-shadow: var(--ui-shadow);
+  padding: var(--ui-space-lg);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Panels default paddings */
+#panel-journal, #panel-security {
+  background: var(--ui-panel-2);
+  border-radius: var(--ui-r);
+  box-shadow: var(--ui-shadow);
+  padding: var(--ui-space-lg);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Section titles */
+h1, .h1 { font-size: var(--fs-xxl, 28px); line-height: 1.15; margin: 0 0 14px; color: var(--ui-text); }
+h2, .h2 { font-size: var(--fs-xl, 22px);  line-height: 1.2;  margin: 8px 0 12px; color: var(--ui-text); }
+h3, .h3 { font-size: var(--fs-lg, 18px);  line-height: 1.25; margin: 6px 0 10px; color: var(--ui-text-2); }
+
+/* Status banner refinement */
+.banner, #status {
+  margin: 10px 0 18px;
+  padding: 10px 14px;
+  border-radius: calc(var(--ui-r) - 4px);
+  background: rgba(0,0,0,.25);
+  color: var(--ui-text-2);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+}
+
+/* Table polishing */
+.table-wrap, table {
+  width: 100%;
+}
+table { border-collapse: collapse; border-spacing: 0; }
+table tr { transition: background var(--ui-dur-fast) var(--ui-ease); }
+table tr:nth-child(odd){ background: rgba(255,255,255,0.02); }
+table tr:hover { background: rgba(61,214,208,0.08); }
+table th, table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  color: var(--ui-text-2);
+}
+table th { color: var(--ui-text); font-weight: 600; }
+
+/* Mobile tweaks */
+@media (max-width: 780px){
+  .main, main, .wrap, .content { padding: 14px; }
+  .sidebar .item, .nav .item, .menu a, .menu button, [data-view], #nav-journal, #nav-security {
+    margin: 6px 4px;
+    padding: 12px 12px;
+  }
+  #panel-journal, #panel-security, .card, .panel { padding: 14px; }
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+}
