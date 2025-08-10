@@ -1,233 +1,119 @@
-// P10b Full Integration (single-file JS, zero side-effects to HTML/CSS/DB)
-;(function(){
-  const cfg = (window.APP_CONFIG||{});
-  // --- Status banner helpers (quiet by default) ---
-  const statusEl = document.getElementById('status');
-  function banner(msg, ok=true, autoHideMs=1500){
-    if(!statusEl) return;
-    statusEl.textContent = msg || '';
-    statusEl.style.background = ok ? '#122' : '#2a1111';
-    statusEl.style.color = ok ? '#9fd' : '#f6b';
-    if(autoHideMs>0){
-      clearTimeout(banner._t); banner._t = setTimeout(()=>{ statusEl.textContent=''; }, autoHideMs);
-    }
-  }
 
-  // --- Single supabase client (avoid multiple instances) ---
-  try{
-    if(!window.SB){
-      if(!window.supabase || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
-        banner('配置未就绪，请刷新或检查 config/config.js', false, 4000);
-      }else{
-        window.SB = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
-          auth: { persistSession: true, autoRefreshToken: true }
-        });
-      }
-    }
-  }catch(e){ console.error('createClient failed', e); }
+// P8 rollback base - stable auth gating + hCaptcha + magic link + verify resend
+const cfg = window.APP_CONFIG||{};
+const supabase = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth:{ persistSession:true, autoRefreshToken:true }});
+const $ = s=>document.querySelector(s);
+const statusBar = $("#status");
+function say(msg, ok=true, ms=1500){ if(!statusBar) return; statusBar.textContent=msg; statusBar.style.background= ok?'#122':'#2a1111'; statusBar.style.color=ok?'#9fd':'#f6b'; if(ms){ setTimeout(()=>statusBar.textContent='', ms); }}
 
-  const SB = window.SB;
-
-  // --- Find containers (robust selectors) ---
-  function getAuthBox(){
-    // Prefer parent of #login-form; fallback to panel-auth / tab-login etc.
-    const lf = document.getElementById('login-form');
-    if(lf){ const box = lf.closest('section,form,div,article,main'); if(box) return box; }
-    const byId = document.querySelector('#panel-auth, #auth-section, #tab-login, [id*="auth" i]');
-    if(byId) return byId.closest('section,div,main,article') || byId;
-    // last resort: the first form that contains email+password
-    const email = document.querySelector('input[type="email"], input[name*="email" i]');
-    const pass  = document.querySelector('input[type="password"], input[name*="pass" i]');
-    if(email && pass){ return email.closest('section,form,div,article,main'); }
-    return null;
-  }
-
-  function getPanels(){
-    const j = document.getElementById('panel-journal') || document.querySelector('[data-panel="journal"], [data-view="journal"], #journal');
-    const s = document.getElementById('panel-security') || document.querySelector('[data-panel="security"], [data-view="security"], #security');
-    return { j, s };
-  }
-  function getAppBox(){
-    const {j,s} = getPanels();
-    if(j && s){
-      // common parent
-      const jp = j.closest('section,div,main,article')||j.parentElement;
-      const sp = s.closest('section,div,main,article')||s.parentElement;
-      return jp===sp ? jp : (jp || sp);
-    }
-    // fallback to any table area
-    const table = document.getElementById('tx-table') || document.querySelector('.table-wrap table, table');
-    if(table){ return table.closest('section,div,main,article'); }
-    return null;
-  }
-
-  function showAuth(){
-    const a = getAuthBox(); const app = getAppBox();
-    if(a){ a.classList.remove('hidden'); if(a.style) a.style.display=''; }
-    if(app){ app.classList.add('hidden'); if(app.style) app.style.display='none'; }
-    banner('请先登录');
-  }
-  function showApp(){
-    const a = getAuthBox(); const app = getAppBox();
-    if(app){ app.classList.remove('hidden'); if(app.style) app.style.display=''; }
-    if(a){ a.classList.add('hidden'); if(a.style) a.style.display='none'; }
-    banner('已登录', true);
-  }
-  function switchPanel(key){
-    const {j,s} = getPanels(); if(!j && !s) return;
-    const map = {journal:j, security:s};
-    Object.entries(map).forEach(([k,el])=>{
-      if(!el) return;
-      const show = (k===key);
-      el.classList.toggle('hidden', !show);
-      if(el.style){ el.style.display = show ? '' : 'none'; }
-    });
-  }
-
-  // --- hCaptcha explicit rendering (stable) ---
-  let hLoaded=false, widgetIds={};
-  window.hcaptchaOnLoad = function(){ hLoaded=true; renderCaptchas(); };
-  function renderOne(id){
-    const el = document.getElementById(id); if(!el) return;
-    if(!hLoaded || !window.hcaptcha){ setTimeout(()=>renderOne(id), 120); return; }
-    if(el.offsetParent===null || el.clientHeight===0){ setTimeout(()=>renderOne(id), 120); return; }
-    try{
-      if(widgetIds[id]!==undefined){
-        window.hcaptcha.reset(widgetIds[id]);
-      }else{
-        if(cfg.HCAPTCHA_SITEKEY) el.setAttribute('data-sitekey', cfg.HCAPTCHA_SITEKEY);
-        widgetIds[id] = window.hcaptcha.render(id);
-      }
-    }catch(e){ console.warn('captcha render fail', id, e); }
-  }
-  function renderCaptchas(){ ['captcha-login','captcha-register','captcha-forgot'].forEach(renderOne); }
-  function getCaptchaToken(id){
-    if(!hLoaded || !window.hcaptcha) return '';
-    const wid = widgetIds[id]; if(wid===undefined) return '';
-    return window.hcaptcha.getResponse(wid)||'';
-  }
-  // re-check on tab/link navigations
-  setTimeout(renderCaptchas, 80);
-
-  // --- Auth flows: login/register/forgot (if forms exist) ---
-  function tryBindAuthForms(){
-    const loginForm = document.getElementById('login-form');
-    if(loginForm && !loginForm._bound){
-      loginForm._bound = true;
-      loginForm.addEventListener('submit', async (e)=>{
-        e.preventDefault();
-        if(!SB) return banner('配置未就绪', false, 3000);
-        const token = getCaptchaToken('captcha-login');
-        if(!token) return banner('请先完成验证码', false, 2000);
-        const email = (document.getElementById('login-email')||{}).value||'';
-        const password = (document.getElementById('login-password')||{}).value||'';
-        const { error } = await SB.auth.signInWithPassword({ email, password, options:{ captchaToken: token }});
-        if(error){ banner('登录失败：'+error.message, false, 3000); return; }
-        // immediate UI switch
-        showApp(); switchPanel('journal');
-      });
-    }
-    const regForm = document.getElementById('register-form');
-    if(regForm && !regForm._bound){
-      regForm._bound = true;
-      regForm.addEventListener('submit', async (e)=>{
-        e.preventDefault();
-        if(!SB) return banner('配置未就绪', false, 3000);
-        const token = getCaptchaToken('captcha-register');
-        if(!token) return banner('请先完成验证码', false, 2000);
-        const email = (document.getElementById('reg-email')||{}).value||'';
-        const p1 = (document.getElementById('reg-password')||{}).value||'';
-        const p2 = (document.getElementById('reg-password2')||{}).value||'';
-        if(p1!==p2) return banner('两次密码不一致', false, 2000);
-        const redirectTo = location.origin + location.pathname;
-        const { error } = await SB.auth.signUp({ email, password:p1, options:{ emailRedirectTo: redirectTo, captchaToken: token }});
-        if(error) return banner('注册失败：'+error.message, false, 3000);
-        banner('注册成功，请到邮箱完成验证后再登录。', true, 3000);
-      });
-    }
-    const forgotForm = document.getElementById('forgot-form');
-    if(forgotForm && !forgotForm._bound){
-      forgotForm._bound = true;
-      forgotForm.addEventListener('submit', async (e)=>{
-        e.preventDefault();
-        if(!SB) return banner('配置未就绪', false, 3000);
-        const token = getCaptchaToken('captcha-forgot');
-        if(!token) return banner('请先完成验证码', false, 2000);
-        const email = (document.getElementById('forgot-email')||{}).value||'';
-        const redirectTo = location.origin + location.pathname;
-        const { error } = await SB.auth.resetPasswordForEmail(email, { redirectTo, captchaToken: token });
-        if(error) return banner('发送失败：'+error.message, false, 3000);
-        banner('已发送重置密码邮件，请查收。', true, 2000);
-      });
-    }
-  }
-  tryBindAuthForms();
-
-  // --- Global navigation delegation (sidebar + tabs) ---
-  document.addEventListener('click', async (e)=>{
-    const t = e.target.closest('[data-view],[data-panel],#nav-journal,#nav-security,.nav-item,a,button,div,li,span');
-    if(!t) return;
-    const text = (t.textContent||'').trim();
-    let key = (t.dataset.view||t.dataset.panel||t.id||'').toLowerCase();
-    if(!/journal|security/.test(key)){
-      if(/日志/.test(text)) key='journal';
-      else if(/安全/.test(text)) key='security';
-      else return;
-    }
-    // require login
-    if(SB){
-      const { data:{ user } } = await SB.auth.getUser();
-      if(!user){ banner('请先登录', true, 1500); showAuth(); return; }
-    }
-    showApp(); switchPanel(key);
-  }, {capture:true});
-
-  // --- Auth state & boot with triple guarantees ---
-  async function boot(){
-    if(!SB){ showAuth(); return; }
-    const { data:{ user } } = await SB.auth.getUser();
-    if(user){ showApp(); switchPanel('journal'); }
-    else { showAuth(); }
-    // render captchas after visibility changes
-    setTimeout(renderCaptchas, 100);
-  }
-
-  // on state change
-  if(SB && !window.__onAuthBound){
-    window.__onAuthBound = true;
-    SB.auth.onAuthStateChange((ev)=>{
-      if(ev==='SIGNED_IN'){ showApp(); switchPanel('journal'); }
-      if(ev==='SIGNED_OUT'){ showAuth(); }
-    });
-  }
-
-  // fallback: poll until user detected (max ~12s)
-  (function poll(i=0){
-    if(i>24) return; // 24 * 500ms = 12s
-    if(!SB){ setTimeout(()=>poll(i+1), 500); return; }
-    SB.auth.getUser().then(({data:{user}})=>{
-      if(user){ showApp(); switchPanel('journal'); }
-      else if(i===0){ showAuth(); }
-      if(!user) setTimeout(()=>poll(i+1), 500);
-    }).catch(()=> setTimeout(()=>poll(i+1), 500));
-  })();
-
-  // initial kick
-  setTimeout(boot, 50);
-
-  // --- small utilities ---
-  // Compute amount auto (if inputs exist)
-  ['qty','price','fee'].forEach(id=>{
-    const el = document.getElementById(id);
-    if(el && !el._bound){
-      el._bound = true;
-      el.addEventListener('input', ()=>{
-        const q = parseFloat((document.getElementById('qty')||{}).value)||0;
-        const p = parseFloat((document.getElementById('price')||{}).value)||0;
-        const f = parseFloat((document.getElementById('fee')||{}).value)||0;
-        const out = document.getElementById('amount'); if(out) out.value = (q*p+f)||'';
-      });
-    }
+// tabs
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll(".tabpane").forEach(p=>p.classList.remove("show"));
+    btn.classList.add("active");
+    $("#tab-"+btn.dataset.tab).classList.add("show");
+    setTimeout(renderCaptchas, 80);
   });
+});
 
-})();
+// hCaptcha explicit
+let widgetIds={}, hLoaded=false;
+window.hcaptchaOnLoad=()=>{ hLoaded=true; renderCaptchas(); };
+function renderOne(id){
+  const el=document.getElementById(id); if(!el) return;
+  if(!hLoaded||!window.hcaptcha){ setTimeout(()=>renderOne(id),120); return; }
+  if(el.offsetParent===null || el.clientHeight===0){ setTimeout(()=>renderOne(id),120); return; }
+  if(widgetIds[id]!==undefined){ try{window.hcaptcha.reset(widgetIds[id]);}catch{} return; }
+  if(cfg.HCAPTCHA_SITEKEY) el.setAttribute('data-sitekey', cfg.HCAPTCHA_SITEKEY);
+  widgetIds[id]=window.hcaptcha.render(id);
+}
+function renderCaptchas(){ ['captcha-login','captcha-register','captcha-forgot'].forEach(renderOne); }
+function tokenOf(id){ if(!hLoaded||!window.hcaptcha) return ''; const wid=widgetIds[id]; if(wid===undefined) return ''; return window.hcaptcha.getResponse(wid)||''; }
+
+// boot
+async function boot(){
+  const { data:{ user } } = await supabase.auth.getUser();
+  if(user){ $("#auth-section").classList.add("hidden"); $("#app-section").classList.remove("hidden"); $("#user-email").textContent=user.email||''; }
+  else { $("#app-section").classList.add("hidden"); $("#auth-section").classList.remove("hidden"); }
+  setTimeout(renderCaptchas, 100);
+  say(user?'已登录':'请先登录');
+}
+setTimeout(boot, 50);
+supabase.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'){ boot(); } if(ev==='SIGNED_OUT'){ boot(); } });
+
+// login
+$("#login-form").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const token=tokenOf('captcha-login'); if(!token) return say('请先完成验证码', false, 2000);
+  const email=$("#login-email").value.trim(); const password=$("#login-password").value;
+  const { error } = await supabase.auth.signInWithPassword({ email, password, options:{ captchaToken: token }});
+  if(error) return say('登录失败：'+error.message, false, 3000);
+  say('登录成功'); boot();
+});
+
+// magic link
+document.getElementById('btn-magic').addEventListener('click', async ()=>{
+  const email = prompt("输入邮箱（将发送登录链接）"); if(!email) return;
+  const redirectTo = location.origin + location.pathname;
+  const { error } = await supabase.auth.signInWithOtp({ email, options:{ emailRedirectTo: redirectTo }});
+  if(error) return say('发送失败：'+error.message, false, 3000);
+  say('已发送登录链接，请查收');
+});
+
+// register
+$("#register-form").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const token=tokenOf('captcha-register'); if(!token) return say('请先完成验证码', false, 2000);
+  const email=$("#reg-email").value.trim();
+  const p1=$("#reg-password").value, p2=$("#reg-password2").value;
+  if(p1!==p2) return say('两次密码不一致', false, 2000);
+  const redirectTo=location.origin+location.pathname;
+  const { error } = await supabase.auth.signUp({ email, password:p1, options:{ emailRedirectTo: redirectTo, captchaToken: token }});
+  if(error) return say('注册失败：'+error.message, false, 3000);
+  say('注册成功，请到邮箱完成验证后再登录。', true, 3000);
+});
+
+// forgot
+$("#forgot-form").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const token=tokenOf('captcha-forgot'); if(!token) return say('请先完成验证码', false, 2000);
+  const email=$("#forgot-email").value.trim();
+  const redirectTo=location.origin+location.pathname;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo, captchaToken: token });
+  if(error) return say('发送失败：'+error.message, false, 3000);
+  say('已发送重置邮件，请查收。', true, 2000);
+});
+
+// verify banner + resend
+function setupResend(email){
+  const btn=$("#resend-btn"), tip=$("#resend-tip"); if(!btn) return;
+  let remain = parseInt(localStorage.getItem("tj_resend_cooldown")||"0",10);
+  const tick = ()=>{
+    if(remain>0){ btn.disabled=true; tip.textContent=`${remain}s 后可再次发送`; remain--; localStorage.setItem("tj_resend_cooldown", remain); setTimeout(tick,1000); }
+    else { btn.disabled=false; tip.textContent=''; localStorage.removeItem("tj_resend_cooldown"); }
+  };
+  tick();
+  btn.onclick = async ()=>{
+    if(btn.disabled) return;
+    try{
+      const { data:{ user } } = await supabase.auth.getUser(); const email=user?.email;
+      const { error } = await supabase.auth.resend({ type:'signup', email, options:{ emailRedirectTo: location.origin+location.pathname }});
+      if(error) throw error;
+      say('已发送验证邮件，请查收'); remain=60; tick();
+    }catch(err){ say('发送失败：'+err.message, false, 3000); }
+  };
+}
+
+document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  await supabase.auth.signOut(); say('已退出'); boot();
+});
+
+// compute amount
+['qty','price','fee'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('input', ()=>{
+    const q=parseFloat($("#qty").value)||0, p=parseFloat($("#price").value)||0, f=parseFloat($("#fee").value)||0;
+    const out=$("#amount"); if(out) out.value = (q*p+f)||'';
+  });
+});

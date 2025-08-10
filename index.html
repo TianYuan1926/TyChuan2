@@ -1,137 +1,90 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>交易日志 · 布局优化</title>
-<link rel="stylesheet" href="./styles.css">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>交易日志 · P8 稳定基座</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
 </head>
 <body>
-<div class="app">
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="logo">🪙</div>
-      <div>
-        <div class="title">Trade Journal</div>
-        <div class="subtitle">加密交易日志</div>
-      </div>
-    </div>
-    <nav class="nav">
-      <button class="nav-btn active" data-target="auth">账户</button>
-      <button class="nav-btn" data-target="journal">日志</button>
-      <button class="nav-btn" data-target="security">安全</button>
-    </nav>
-    <div class="sidebar-footer">
-      <span id="build-info" class="muted small"></span>
-    </div>
-  </aside>
+  <header class="header">
+    <h1>交易日志</h1>
+    <div id="status" class="banner">初始化中...</div>
+  </header>
 
-  <main class="content">
-    <header class="topbar">
-      <div id="status" class="status">初始化中...</div>
-      <div class="user-actions">
-        <span id="user-email" class="muted"></span>
-        <button id="logout-btn" class="btn ghost small">退出</button>
-      </div>
-    </header>
+  <main class="wrap">
+    <section id="auth-section" class="card">
+      <nav class="tabs row gap">
+        <button class="tab active" data-tab="login">登录</button>
+        <button class="tab" data-tab="register">注册</button>
+        <button class="tab" data-tab="forgot">忘记密码</button>
+      </nav>
 
-    <!-- 账户区 -->
-    <section id="panel-auth" class="panel show">
-      <div class="cards two">
-        <div class="card">
-          <h2>登录</h2>
-          <form id="login-form" class="form grid-2">
-            <label>邮箱<input type="email" id="login-email" required></label>
-            <label>密码<input type="password" id="login-password" required></label>
-            <div id="captcha-login" class="h-captcha" data-sitekey=""></div>
-            <button type="submit" class="btn primary">登录</button>
-          </form>
-        </div>
-        <div class="card">
-          <h2>注册</h2>
-          <form id="register-form" class="form grid-2">
-            <label>邮箱<input type="email" id="reg-email" required></label>
-            <label>密码<input type="password" id="reg-password" required></label>
-            <label>确认密码<input type="password" id="reg-password2" required></label>
-            <div id="captcha-register" class="h-captcha" data-sitekey=""></div>
-            <button type="submit" class="btn primary">注册</button>
-          </form>
+      <div id="tab-login" class="tabpane show">
+        <form id="login-form" class="grid grid-2">
+          <label>邮箱<input type="email" id="login-email" required /></label>
+          <label>密码<input type="password" id="login-password" required /></label>
+          <div id="captcha-login" class="h-captcha" data-sitekey=""></div>
+          <button type="submit" id="login-btn" class="primary">登录</button>
+        </form>
+        <div class="row gap">
+          <button id="btn-magic" class="ghost small">用邮箱链接登录</button>
         </div>
       </div>
-      <div class="card">
-        <h2>忘记密码</h2>
-        <form id="forgot-form" class="form grid-3">
-          <label>邮箱<input type="email" id="forgot-email" required></label>
+
+      <div id="tab-register" class="tabpane">
+        <form id="register-form" class="grid grid-2">
+          <label>邮箱<input type="email" id="reg-email" required /></label>
+          <label>密码<input type="password" id="reg-password" required /></label>
+          <label>确认密码<input type="password" id="reg-password2" required /></label>
+          <div id="captcha-register" class="h-captcha" data-sitekey=""></div>
+          <button type="submit" id="reg-btn" class="primary">注册</button>
+        </form>
+      </div>
+
+      <div id="tab-forgot" class="tabpane">
+        <form id="forgot-form" class="grid grid-2">
+          <label>邮箱<input type="email" id="forgot-email" required /></label>
           <div id="captcha-forgot" class="h-captcha" data-sitekey=""></div>
-          <button type="submit" class="btn">发送重置邮件</button>
+          <button type="submit" id="forgot-btn" class="primary">发送重置密码邮件</button>
         </form>
       </div>
     </section>
 
-    <!-- 日志区 -->
-    <section id="panel-journal" class="panel">
-      <div id="verify-banner" class="banner warn hidden">
-        你的邮箱尚未验证。请前往邮箱点击确认链接后再写入数据。
-        <button id="resend-btn" class="btn ghost small">重发验证邮件</button>
+    <section id="app-section" class="card hidden">
+      <div class="row between">
+        <h2>交易</h2>
+        <div class="row gap">
+          <span id="user-email" class="muted"></span>
+          <button id="logout-btn">退出登录</button>
+        </div>
+      </div>
+
+      <div id="verify-banner" class="warn hidden">
+        你的邮箱还未验证。请到邮箱点击确认链接。
+        <button id="resend-btn" class="ghost small">重发验证邮件</button>
         <span id="resend-tip" class="muted small"></span>
       </div>
 
-      <div class="cards two-70">
-        <div class="card">
-          <h2>新增交易</h2>
-          <form id="trade-form" class="form grid-3">
-            <label>时间<input type="datetime-local" id="trade_time" required></label>
-            <label>币种<input type="text" id="symbol" placeholder="BTCUSDT" required></label>
-            <label>方向<select id="side"><option>BUY</option><option>SELL</option></select></label>
-            <label>数量<input type="number" id="qty" step="0.00000001" min="0" required></label>
-            <label>价格<input type="number" id="price" step="0.00000001" min="0" required></label>
-            <label>手续费<input type="number" id="fee" step="0.00000001" value="0"></label>
-            <label class="span-3">成交额<input type="number" id="amount" readonly></label>
-            <label class="span-3">备注<textarea id="notes" rows="2"></textarea></label>
-            <button type="submit" class="btn primary">保存记录</button>
-          </form>
-        </div>
-
-        <div class="card">
-          <h2>我的记录</h2>
-          <div class="toolbar">
-            <button id="refresh-btn" class="btn">刷新</button>
-            <button id="export-btn" class="btn ghost">导出 CSV</button>
-          </div>
-          <div class="table-wrap">
-            <table id="tx-table" class="table">
-              <thead><tr><th>时间</th><th>币种</th><th>方向</th><th>数量</th><th>价格</th><th>手续费</th><th>成交额</th><th>备注</th><th></th></tr></thead>
-              <tbody id="tx-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 安全区（示例：安全日志占位，与你之前的事件表兼容） -->
-    <section id="panel-security" class="panel">
-      <div class="card">
-        <h2>我的安全日志</h2>
-        <div class="toolbar">
-          <button id="sec-refresh" class="btn">刷新</button>
-          <button id="sec-export" class="btn ghost">导出 CSV</button>
-        </div>
-        <div class="table-wrap">
-          <table id="sec-table" class="table">
-            <thead><tr><th>时间</th><th>事件</th><th>详情</th></tr></thead>
-            <tbody id="sec-tbody"></tbody>
-          </table>
-        </div>
-      </div>
+      <form id="trade-form" class="grid grid-3">
+        <label>时间<input type="datetime-local" id="trade_time" required /></label>
+        <label>币种<input type="text" id="symbol" required placeholder="BTCUSDT" /></label>
+        <label>方向<select id="side"><option>BUY</option><option>SELL</option></select></label>
+        <label>数量<input type="number" id="qty" step="0.00000001" min="0" required /></label>
+        <label>价格<input type="number" id="price" step="0.00000001" min="0" required /></label>
+        <label>手续费<input type="number" id="fee" step="0.00000001" min="0" value="0" /></label>
+        <label>成交额（自动）<input type="number" id="amount" readonly /></label>
+        <label class="span-3">备注<textarea id="notes" rows="2"></textarea></label>
+        <button type="submit" id="save-btn" class="primary">保存记录</button>
+      </form>
     </section>
   </main>
-</div>
 
-<script src="./config/config.js"></script>
-<script src="./main.js"></script>
+  <footer class="footer"><span class="muted">P8 UI/UX 稳定版</span></footer>
+
+  <script src="./config/config.js"></script>
+  <script src="./main.js"></script>
 </body>
 </html>
