@@ -5,30 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>交易日志 · P8 稳定基座</title>
 
-  <!-- 样式顺序：tokens → 主样式 → 第三步新增样式 -->
+  <!-- 样式顺序：tokens → 主样式 → step3 → step4 -->
   <link rel="stylesheet" href="./styles.tokens.css">
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./styles.navlayout.addon.css">
+  <link rel="stylesheet" href="./styles.forms.addon.css">
 
-  <!-- 依赖脚本（保持与现有版本一致） -->
+  <!-- 依赖脚本 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad" async defer></script>
 </head>
 <body>
-  <!-- 顶部状态条 -->
   <div id="status" class="status-bar" aria-live="polite"></div>
 
-  <!-- 认证区：保留你现有 DOM；这里只放占位注释，避免误改结构。
-       你的真实登录/注册/忘记密码区域请保持原样。 -->
-  <!-- AUTH SECTION (kept as-is in your repo) -->
-
-  <!-- 应用区面板容器：只为样式命中提供 data-panel 标记（不改变现有结构） -->
+  <!-- 你的现有内容保持不变，这里只演示结构占位 -->
+  <header class="header"><h1>交易日志</h1></header>
   <main id="app-root">
-    <section id="panel-journal" data-panel="journal"><!-- 你的“日志”面板内容 --></section>
-    <section id="panel-security" data-panel="security"><!-- 你的“安全”面板内容 --></section>
+    <!-- 登录/注册/忘记密码等区块请保留你现有 DOM -->
+    <section id="panel-journal" data-panel="journal"></section>
+    <section id="panel-security" data-panel="security"></section>
   </main>
 
-  <!-- 你现有的自定义脚本文件（例如 main.js） -->
   <script src="./main.js"></script>
 </body>
 </html>

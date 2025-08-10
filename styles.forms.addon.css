@@ -1,0 +1,60 @@
+/* P8 UI Step 4 - 表单与校验反馈美化（纯样式，零副作用） */
+:root{
+  --input-bg: rgba(255,255,255,.06);
+  --input-brd: rgba(255,255,255,.18);
+  --input-focus: #3dd6d0;
+  --err: #ff6b81;
+  --ok: #4cd4a9;
+  --radius: 12px;
+  --shadow: 0 8px 22px rgba(0,0,0,.25);
+}
+
+.field{ display:flex; flex-direction:column; gap:6px; margin:12px 0; }
+.field > span{ color: var(--text-2, #b8c3d9); font-size: 14px; }
+.field.req > span::after{ content:' *'; color: var(--err); }
+
+input[type="email"], input[type="password"], input[type="text"], input[type="number"]{
+  width:100%; box-sizing:border-box;
+  background: var(--input-bg);
+  border:1px solid var(--input-brd);
+  color: var(--text, #e6f0ff);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  outline: none;
+  transition: border .18s, box-shadow .18s, background .18s;
+}
+input::placeholder{ color: var(--muted, #90a0bb); opacity:.8; }
+input:focus{
+  border-color: var(--input-focus);
+  box-shadow: 0 0 0 3px rgba(61,214,208,.15), var(--shadow);
+  background: rgba(255,255,255,.08);
+}
+
+.captcha-wrap{ margin: 10px 0 6px; padding: 8px; border-radius: 10px; background: rgba(255,255,255,.03); }
+
+.form-msg{ margin:8px 0; font-size:14px; }
+.form-msg.error{ color: var(--err); }
+.form-msg.ok{ color: var(--ok); }
+
+.btn{ display:inline-flex; align-items:center; justify-content:center;
+  padding: 10px 14px; border-radius: 12px; border:none; cursor:pointer;
+  background: var(--brand, #3dd6d0); color:#062e2c; font-weight:600; transition: transform .12s, filter .2s;
+}
+.btn:hover{ filter: brightness(1.05); }
+.btn:active{ transform: translateY(1px); }
+.btn.loading{ position:relative; pointer-events:none; opacity:.8; }
+.btn.loading::after{
+  content:''; width:16px; height:16px; border-radius:50%;
+  border:2px solid rgba(0,0,0,.25); border-top-color:#000; margin-left:8px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin{ to{ transform: rotate(360deg); } }
+
+/* 表单网格工具 */
+.form.grid-2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+.form.grid-1{ display:grid; grid-template-columns: 1fr; gap:12px; }
+
+@media (max-width:780px){
+  .form.grid-2{ grid-template-columns: 1fr; }
+  .btn{ width:100%; }
+}
