@@ -1,201 +1,212 @@
-/* ===== Trades Frontend Bridge — safe init ===== */
-(function () {
-  const log = (...args) => console.log('[TRADES]', ...args);
-  const error = (...args) => console.error('[TRADES]', ...args);
 
-  // 小提示：顶部 #status.banner 如果存在，就在这里显示提示语
-  function toast(msg, kind = 'info') {
+/* ===== App Front Bridge: Auth + Trades (safe, overwrite main.js) ===== */
+(function(){
+  const log = (...a)=>console.log('[APP]',...a);
+  const err = (...a)=>console.error('[APP]',...a);
+  const APP = window.APP_CONFIG||{};
+
+  function toast(msg, kind='info'){
     const el = document.getElementById('status');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.remove('ok', 'err');
-    if (kind === 'ok') el.classList.add('ok');
-    if (kind === 'err') el.classList.add('err');
-    // 2 秒后淡出
+    if(!el) return;
+    el.textContent = msg||'';
+    el.classList.remove('ok','err');
+    if(kind==='ok') el.classList.add('ok');
+    if(kind==='err') el.classList.add('err');
     clearTimeout(toast._t);
-    toast._t = setTimeout(() => (el.textContent = ''), 2000);
+    toast._t=setTimeout(()=>{ el.textContent=''; }, 2500);
   }
 
-  // === 1) 初始化 Supabase 客户端 ===
-  const APP = window.APP_CONFIG || {};
-  const hasSupabase = !!(window.supabase && window.supabase.createClient);
-  const hasConfig = !!(APP.SUPABASE_URL && APP.SUPABASE_ANON_KEY);
-
-  if (!hasSupabase) {
-    error('supabase-js 未加载：请确认 index.html 中的 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js..."> 存在');
+  // ---- Supabase init ----
+  if(!(window.supabase&&window.supabase.createClient)){
+    err('supabase-js missing. Make sure the CDN <script> is in index.html');
     return;
   }
-  if (!hasConfig) {
-    error('APP_CONFIG 缺少 SUPABASE_URL 或 SUPABASE_ANON_KEY');
+  if(!(APP.SUPABASE_URL && APP.SUPABASE_ANON_KEY)){
+    err('APP_CONFIG missing SUPABASE_URL / SUPABASE_ANON_KEY');
     return;
   }
+  const SB = window.supabase.createClient(APP.SUPABASE_URL, APP.SUPABASE_ANON_KEY);
+  window.__SB = SB;
 
-  try {
-    const SB = window.supabase.createClient(APP.SUPABASE_URL, APP.SUPABASE_ANON_KEY);
-    window.__SB = SB; // 供自检脚本与调试使用
-    log('Supabase client 初始化完成');
-  } catch (e) {
-    error('创建 Supabase 客户端失败：', e);
-    return;
+  // ---- Section gate: only show app after login ----
+  function setGate(user){
+    const auth = document.getElementById('auth-section');
+    const app  = document.getElementById('app-section') || document.getElementById('panel-journal')?.closest('section,main,article,div');
+    if(auth){ auth.style.display = user? 'none' : ''; }
+    if(app){  app.style.display  = user? '' : 'none'; }
   }
 
-  const SB = window.__SB;
+  // ---- Optional hCaptcha token reader ----
+  async function getCaptchaToken(){
+    try{
+      if(window.hcaptcha){
+        // if explicit render, get first widget id
+        const ids = window.hcaptcha.getRespKey ? Object.keys(window.hcaptcha.getRespKey()) : [];
+        if(ids && ids.length){
+          const t = window.hcaptcha.getResponse(ids[0]);
+          if(t) return t;
+        }
+        // fallback: try execute() on first .h-captcha
+        if(window.hcaptcha.execute) {
+          const t = await window.hcaptcha.execute();
+          if(t) return t;
+        }
+      }
+    }catch(e){ /* ignore */ }
+    return undefined;
+  }
 
-  // === 2) API 封装（只对当前用户读写） ===
-  // 渲染到 #tx-table（如果存在）
-  function renderTable(rows) {
+  // ---- Auth API ----
+  const AuthUI = {
+    async currentUser(){
+      const {data, error:e} = await SB.auth.getUser();
+      if(e){ err(e); return null; }
+      return data.user||null;
+    },
+    async signIn(email, password){
+      const opts = { email, password, options:{} };
+      const ct = await getCaptchaToken();
+      if(ct) opts.options.captchaToken = ct;
+      const {data, error:e} = await SB.auth.signInWithPassword(opts);
+      if(e){ toast(e.message||'登录失败', 'err'); throw e; }
+      toast('登录成功', 'ok');
+      return data.user;
+    },
+    async signUp(email, password){
+      const opts = { email, password, options:{} };
+      const ct = await getCaptchaToken();
+      if(ct) opts.options.captchaToken = ct;
+      const {data, error:e} = await SB.auth.signUp(opts);
+      if(e){ toast(e.message||'注册失败', 'err'); throw e; }
+      toast('注册成功，请验证邮箱', 'ok');
+      return data.user;
+    },
+    async resetPassword(email){
+      const ct = await getCaptchaToken();
+      const { data, error:e } = await SB.auth.resetPasswordForEmail(email, { captchaToken: ct });
+      if(e){ toast(e.message||'发送失败', 'err'); throw e; }
+      toast('重置邮件已发送', 'ok');
+      return data;
+    },
+    async signOut(){
+      const {error:e} = await SB.auth.signOut();
+      if(e){ toast(e.message||'退出失败','err'); throw e; }
+      toast('已退出','ok');
+    }
+  };
+  window.AuthUI = AuthUI;
+
+  // ---- Trades API (same as before) ----
+  function renderTable(rows){
     const table = document.getElementById('tx-table');
-    if (!table) return; // 页面没有表格，不处理
-    // 若表格没有 <thead>/<tbody>，简单创建
-    if (!table.tHead) {
+    if(!table) return;
+    if(!table.tHead){
       const thead = table.createTHead();
       const tr = thead.insertRow();
-      ['时间', '币种', '方向', '数量', '价格', '手续费', '备注', ''].forEach((h, i) => {
-        const th = document.createElement('th');
-        th.textContent = h;
-        if (i === 4 || i === 3) th.className = 'num';
+      ['时间','币种','方向','数量','价格','手续费','备注',''].forEach((h,i)=>{
+        const th=document.createElement('th');
+        th.textContent=h;
+        if(i===3||i===4) th.className='num';
         tr.appendChild(th);
       });
     }
-    let tbody = table.tBodies[0];
-    if (!tbody) tbody = table.createTBody();
-    tbody.innerHTML = '';
-    rows.forEach((r) => {
-      const tr = document.createElement('tr');
-      const cells = [
-        new Date(r.ts).toLocaleString(),
-        r.symbol || '',
-        r.side || '',
-        String(r.qty ?? ''),
-        String(r.price ?? ''),
-        String(r.fee ?? ''),
-        r.note || '',
-      ];
-      cells.forEach((c, i) => {
-        const td = document.createElement('td');
-        td.textContent = c;
-        if (i === 3 || i === 4) td.className = 'num';
-        tr.appendChild(td);
-      });
-      // 删除按钮
-      const tdOp = document.createElement('td');
-      const btn = document.createElement('button');
-      btn.textContent = '删除';
-      btn.addEventListener('click', async () => {
-        try {
-          await TradesAPI.deleteTrade(r.id);
-          toast('已删除', 'ok');
-          await TradesAPI.loadTrades();
-        } catch (e) {
-          toast('删除失败', 'err');
-          error(e);
-        }
-      });
-      tdOp.appendChild(btn);
-      tr.appendChild(tdOp);
-      tbody.appendChild(tr);
+    let tbody = table.tBodies[0]; if(!tbody) tbody = table.createTBody();
+    tbody.innerHTML='';
+    (rows||[]).forEach(r=>{
+      const tr=document.createElement('tr');
+      const cells=[ new Date(r.ts).toLocaleString(), r.symbol||'', r.side||'',
+                    String(r.qty??''), String(r.price??''), String(r.fee??''), r.note||'' ];
+      cells.forEach((c,i)=>{ const td=document.createElement('td'); td.textContent=c; if(i===3||i===4) td.className='num'; tr.appendChild(td); });
+      const tdOp=document.createElement('td');
+      const btn=document.createElement('button'); btn.textContent='删除';
+      btn.addEventListener('click', async()=>{ try{ await TradesAPI.deleteTrade(r.id); toast('已删除','ok'); await TradesAPI.loadTrades(); }catch(e){ err(e); toast('删除失败','err'); } });
+      tdOp.appendChild(btn); tr.appendChild(tdOp); tbody.appendChild(tr);
     });
   }
 
-  async function requireUser() {
-    const { data, error: err } = await SB.auth.getUser();
-    if (err) throw err;
-    return data.user || null;
-  }
-
-  // 公开 API
   const TradesAPI = {
-    // 读取我的交易
-    async loadTrades() {
-      const u = await requireUser();
-      if (!u) {
-        toast('请先登录', 'err');
-        return [];
-      }
-      const { data, error: err } = await SB
-        .from('trades')
-        .select('*')
-        .order('ts', { ascending: false });
-      if (err) {
-        error('加载失败', err);
-        toast('加载失败', 'err');
-        return [];
-      }
-      renderTable(data || []);
-      log('loadTrades OK，rows=', data?.length ?? 0);
-      return data || [];
+    async loadTrades(){
+      const {data:u} = await SB.auth.getUser(); if(!u.user){ toast('请先登录','err'); setGate(null); return []; }
+      const { data, error:e } = await SB.from('trades').select('*').order('ts', {ascending:false});
+      if(e){ err(e); toast('加载失败','err'); return []; }
+      renderTable(data||[]); setGate(u.user); return data||[];
     },
-
-    // 新增一条
-    async saveTrade(payload) {
-      const u = await requireUser();
-      if (!u) throw new Error('未登录');
-      const row = {
-        user_id: u.id,
-        ts: payload.ts ? new Date(payload.ts).toISOString() : new Date().toISOString(),
-        symbol: payload.symbol || '',
-        side: payload.side || 'buy',
-        qty: Number(payload.qty || 0),
-        price: Number(payload.price || 0),
-        fee: Number(payload.fee || 0),
-        note: payload.note || ''
-      };
-      const { error: err } = await SB.from('trades').insert(row);
-      if (err) throw err;
-      log('saveTrade OK');
-      toast('已保存', 'ok');
+    async saveTrade(payload){
+      const {data:u} = await SB.auth.getUser(); if(!u.user) throw new Error('未登录');
+      const row={ user_id:u.user.id, ts: payload.ts ? new Date(payload.ts).toISOString() : new Date().toISOString(),
+        symbol:payload.symbol||'', side:payload.side||'buy', qty:Number(payload.qty||0), price:Number(payload.price||0),
+        fee:Number(payload.fee||0), note:payload.note||'' };
+      const {error:e}=await SB.from('trades').insert(row);
+      if(e) throw e; toast('已保存','ok');
     },
-
-    // 删除一条（仅本人）
-    async deleteTrade(id) {
-      const u = await requireUser();
-      if (!u) throw new Error('未登录');
-      const { error: err } = await SB.from('trades').delete().eq('id', id);
-      if (err) throw err;
-      log('deleteTrade OK');
+    async deleteTrade(id){
+      const {data:u} = await SB.auth.getUser(); if(!u.user) throw new Error('未登录');
+      const {error:e}=await SB.from('trades').delete().eq('id', id);
+      if(e) throw e;
     }
   };
-
-  // 暴露到全局，便于自检脚本识别
   window.TradesAPI = TradesAPI;
 
-  // === 3) 自动接管 #tx-form（如果存在） ===
-  document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('tx-form');
-    if (form) {
-      log('检测到 #tx-form，自动接管提交');
-      form.addEventListener('submit', async (e) => {
+  // ---- Bind forms if present ----
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    // gate on load
+    const u = (await SB.auth.getUser()).data.user; setGate(u);
+
+    const loginForm = document.getElementById('login-form');
+    if(loginForm){
+      log('hook login-form');
+      loginForm.addEventListener('submit', async (e)=>{
         e.preventDefault();
-        const v = (id) => (form.querySelector(`#${id}`) || {}).value || '';
-        const payload = {
-          ts: v('tx-ts'),
-          symbol: v('tx-symbol'),
-          side: v('tx-side'),
-          qty: v('tx-qty'),
-          price: v('tx-price'),
-          fee: v('tx-fee'),
-          note: v('tx-note')
-        };
-        try {
-          await TradesAPI.saveTrade(payload);
-          await TradesAPI.loadTrades();
-          form.reset();
-        } catch (err) {
-          error('保存失败', err);
-          toast('保存失败', 'err');
-        }
+        const email = (loginForm.querySelector('#login-email')||{}).value || '';
+        const pass  = (loginForm.querySelector('#login-password')||{}).value || '';
+        try{ await AuthUI.signIn(email, pass); setGate((await SB.auth.getUser()).data.user); await TradesAPI.loadTrades(); }
+        catch(e){ err(e); }
       });
     }
-
-    // 页面上如果存在 #tx-table，自动加载数据
-    if (document.getElementById('tx-table')) {
-      TradesAPI.loadTrades().catch(err => error(err));
+    const regForm = document.getElementById('register-form');
+    if(regForm){
+      log('hook register-form');
+      regForm.addEventListener('submit', async(e)=>{
+        e.preventDefault();
+        const email=(regForm.querySelector('#register-email')||{}).value||'';
+        const pass=(regForm.querySelector('#register-password')||{}).value||'';
+        try{ await AuthUI.signUp(email, pass); } catch(e){ err(e); }
+      });
     }
+    const forgotForm = document.getElementById('forgot-form');
+    if(forgotForm){
+      log('hook forgot-form');
+      forgotForm.addEventListener('submit', async(e)=>{
+        e.preventDefault();
+        const email=(forgotForm.querySelector('#forgot-email')||{}).value||'';
+        try{ await AuthUI.resetPassword(email); } catch(e){ err(e); }
+      });
+    }
+    const logoutBtn = document.getElementById('btn-logout');
+    if(logoutBtn){
+      logoutBtn.addEventListener('click', async()=>{ try{ await AuthUI.signOut(); setGate(null); }catch(e){ err(e); } });
+    }
+    // trades form
+    const form = document.getElementById('tx-form');
+    if(form){
+      form.addEventListener('submit', async(e)=>{
+        e.preventDefault();
+        const v = id => (form.querySelector('#'+id)||{}).value || '';
+        const payload = { ts:v('tx-ts'), symbol:v('tx-symbol'), side:v('tx-side'),
+                          qty:v('tx-qty'), price:v('tx-price'), fee:v('tx-fee'), note:v('tx-note') };
+        try{ await TradesAPI.saveTrade(payload); await TradesAPI.loadTrades(); form.reset(); }
+        catch(e){ err(e); toast('保存失败','err'); }
+      });
+    }
+    // auto load
+    if(document.getElementById('tx-table')){ TradesAPI.loadTrades().catch(err); }
 
-    // 打印一次初始化状态，便于你用自检脚本观察
-    (async () => {
-      const u = await SB.auth.getUser();
-      log('INIT OK · SB=', !!SB, ' · User=', !!u.data.user, ' · TradesAPI=', !!window.TradesAPI);
-    })();
+    // auth state change
+    SB.auth.onAuthStateChange((_evt, session)=>{
+      setGate(session?.user||null);
+      if(session?.user) TradesAPI.loadTrades().catch(()=>{});
+    });
+
+    log('INIT OK: Auth + Trades wired.');
   });
 })();
