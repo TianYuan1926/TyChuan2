@@ -1,0 +1,21 @@
+:root{
+  /* 色彩 */
+  --bg:#0b1220; --panel:#111a2b; --panel-2:#0e1626;
+  --brand:#3dd6d0; --brand-2:#25a9a4;
+  --text:#e6f0ff; --text-2:#b8c3d9; --muted:#90a0bb;
+  --danger:#ff6b81; --warning:#ffc857; --success:#4cd4a9;
+  /* 间距与圆角 */
+  --r:14px; --r-sm:10px; --space:16px; --space-sm:10px; --space-lg:24px;
+  /* 字体与字号 */
+  --font: ui-sans-serif, system-ui, "PingFang SC","Microsoft YaHei", Arial, sans-serif;
+  --fs-xxl:28px; --fs-xl:22px; --fs-lg:18px; --fs-md:16px; --fs-sm:14px;
+  /* 阴影与动画 */
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+  --easing:cubic-bezier(.2,.8,.2,1);
+  --dur-fast:120ms; --dur:220ms;
+}
+
+/* 预留的工具类（暂未用到，不影响现状） */
+.u-shadow{ box-shadow: var(--shadow); }
+.u-rounded{ border-radius: var(--r); }
+.u-muted{ color: var(--muted); }
