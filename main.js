@@ -1,212 +1,208 @@
 
-/* ===== App Front Bridge: Auth + Trades (safe, overwrite main.js) ===== */
+// === Auth + Trades + hCaptcha Hotfix (drop-in) ===
 (function(){
-  const log = (...a)=>console.log('[APP]',...a);
-  const err = (...a)=>console.error('[APP]',...a);
-  const APP = window.APP_CONFIG||{};
+  const APP = window.APP_CONFIG || {};
+  const SITEKEY = APP.HCAPTCHA_SITEKEY || '92d48fee-72fc-481a-a0e6-690084662786'; // 你提供的 sitekey 兜底
+  const log = (...a)=>console.log('[HOTFIX]', ...a);
+  const err = (...a)=>console.error('[HOTFIX]', ...a);
 
+  // ---------- Status toast ----------
   function toast(msg, kind='info'){
     const el = document.getElementById('status');
-    if(!el) return;
-    el.textContent = msg||'';
+    if (!el) return;
+    el.textContent = msg;
     el.classList.remove('ok','err');
-    if(kind==='ok') el.classList.add('ok');
-    if(kind==='err') el.classList.add('err');
-    clearTimeout(toast._t);
-    toast._t=setTimeout(()=>{ el.textContent=''; }, 2500);
+    if (kind==='ok') el.classList.add('ok');
+    if (kind==='err') el.classList.add('err');
+    clearTimeout(toast._t); toast._t=setTimeout(()=>{el.textContent='';}, 2500);
   }
 
-  // ---- Supabase init ----
-  if(!(window.supabase&&window.supabase.createClient)){
-    err('supabase-js missing. Make sure the CDN <script> is in index.html');
-    return;
+  // ---------- Ensure Supabase ----------
+  if(!(window.supabase && window.supabase.createClient)){
+    err('supabase-js 未加载'); return;
   }
   if(!(APP.SUPABASE_URL && APP.SUPABASE_ANON_KEY)){
-    err('APP_CONFIG missing SUPABASE_URL / SUPABASE_ANON_KEY');
-    return;
+    err('APP_CONFIG 缺少 SUPABASE_URL/ANON_KEY'); return;
   }
-  const SB = window.supabase.createClient(APP.SUPABASE_URL, APP.SUPABASE_ANON_KEY);
+  const SB = window.__SB || window.supabase.createClient(APP.SUPABASE_URL, APP.SUPABASE_ANON_KEY);
   window.__SB = SB;
 
-  // ---- Section gate: only show app after login ----
-  function setGate(user){
-    const auth = document.getElementById('auth-section');
-    const app  = document.getElementById('app-section') || document.getElementById('panel-journal')?.closest('section,main,article,div');
-    if(auth){ auth.style.display = user? 'none' : ''; }
-    if(app){  app.style.display  = user? '' : 'none'; }
+  // ---------- hCaptcha loader & token ----------
+  async function loadHCaptcha(){
+    if (window.hcaptcha && window.hcaptcha.render) return true;
+    // 动态加载脚本
+    await new Promise((resolve,reject)=>{
+      const s = document.createElement('script');
+      s.src = 'https://hcaptcha.com/1/api.js?render=explicit';
+      s.async = true; s.defer = true;
+      s.onload = ()=>resolve(); s.onerror = (e)=>reject(e);
+      document.head.appendChild(s);
+    }).catch(e=>{err('加载 hCaptcha 失败', e)});
+    return !!(window.hcaptcha && window.hcaptcha.render);
   }
 
-  // ---- Optional hCaptcha token reader ----
-  async function getCaptchaToken(){
-    try{
-      if(window.hcaptcha){
-        // if explicit render, get first widget id
-        const ids = window.hcaptcha.getRespKey ? Object.keys(window.hcaptcha.getRespKey()) : [];
-        if(ids && ids.length){
-          const t = window.hcaptcha.getResponse(ids[0]);
-          if(t) return t;
-        }
-        // fallback: try execute() on first .h-captcha
-        if(window.hcaptcha.execute) {
-          const t = await window.hcaptcha.execute();
-          if(t) return t;
-        }
-      }
-    }catch(e){ /* ignore */ }
-    return undefined;
-  }
-
-  // ---- Auth API ----
-  const AuthUI = {
-    async currentUser(){
-      const {data, error:e} = await SB.auth.getUser();
-      if(e){ err(e); return null; }
-      return data.user||null;
-    },
-    async signIn(email, password){
-      const opts = { email, password, options:{} };
-      const ct = await getCaptchaToken();
-      if(ct) opts.options.captchaToken = ct;
-      const {data, error:e} = await SB.auth.signInWithPassword(opts);
-      if(e){ toast(e.message||'登录失败', 'err'); throw e; }
-      toast('登录成功', 'ok');
-      return data.user;
-    },
-    async signUp(email, password){
-      const opts = { email, password, options:{} };
-      const ct = await getCaptchaToken();
-      if(ct) opts.options.captchaToken = ct;
-      const {data, error:e} = await SB.auth.signUp(opts);
-      if(e){ toast(e.message||'注册失败', 'err'); throw e; }
-      toast('注册成功，请验证邮箱', 'ok');
-      return data.user;
-    },
-    async resetPassword(email){
-      const ct = await getCaptchaToken();
-      const { data, error:e } = await SB.auth.resetPasswordForEmail(email, { captchaToken: ct });
-      if(e){ toast(e.message||'发送失败', 'err'); throw e; }
-      toast('重置邮件已发送', 'ok');
-      return data;
-    },
-    async signOut(){
-      const {error:e} = await SB.auth.signOut();
-      if(e){ toast(e.message||'退出失败','err'); throw e; }
-      toast('已退出','ok');
+  let widgetId = null;
+  async function ensureWidget(){
+    const ok = await loadHCaptcha();
+    if(!ok) return null;
+    if (widgetId!==null) return widgetId;
+    // 创建隐藏容器并渲染
+    const box = document.createElement('div');
+    box.id = 'captcha-box-hidden';
+    box.style.cssText = 'position:fixed;left:-9999px;bottom:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(box);
+    try {
+      widgetId = window.hcaptcha.render(box, { sitekey: SITEKEY, size:'invisible' });
+      log('hCaptcha widget rendered', widgetId);
+      return widgetId;
+    } catch(e){
+      err('渲染 hCaptcha 失败', e);
+      return null;
     }
-  };
-  window.AuthUI = AuthUI;
+  }
 
-  // ---- Trades API (same as before) ----
+  async function getCaptchaToken(){
+    const wid = await ensureWidget();
+    if (wid===null) return null;
+    try{
+      const token = await window.hcaptcha.execute(wid, { async: true });
+      return token || null;
+    }catch(e){
+      err('获取 captchaToken 失败', e);
+      return null;
+    }
+  }
+
+  // 暴露一个测试函数给自检脚本
+  window.AuthUI = window.AuthUI || {};
+  window.AuthUI.testCaptcha = async ()=> await getCaptchaToken();
+
+  // ---------- Auth API (with captchaToken) ----------
+  window.AuthUI.login = async function(email, password){
+    const captchaToken = await getCaptchaToken();
+    const { data, error } = await SB.auth.signInWithPassword({ email, password, options:{ captchaToken } });
+    if (error) throw error;
+    return data;
+  };
+  window.AuthUI.register = async function(email, password){
+    const captchaToken = await getCaptchaToken();
+    const { data, error } = await SB.auth.signUp({ email, password, options:{ captchaToken } });
+    if (error) throw error;
+    return data;
+  };
+  window.AuthUI.reset = async function(email){
+    const captchaToken = await getCaptchaToken();
+    const { data, error } = await SB.auth.resetPasswordForEmail(email, { captchaToken });
+    if (error) throw error;
+    return data;
+  };
+  window.AuthUI.logout = async function(){
+    await SB.auth.signOut();
+  };
+
+  // 自动接管页面表单（如果存在）
+  document.addEventListener('DOMContentLoaded', ()=>{
+    // gate：未登录只显示认证区
+    const authBox = document.getElementById('auth-section');
+    const appBox  = document.getElementById('app-section');
+    SB.auth.getUser().then(({data})=>{
+      const signed = !!data.user;
+      if (authBox) authBox.style.display = signed ? 'none' : '';
+      if (appBox)  appBox.style.display  = signed ? '' : 'none';
+    });
+
+    const login = document.getElementById('login-form');
+    if (login){
+      login.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const email = login.querySelector('#login-email')?.value?.trim()||'';
+        const pass  = login.querySelector('#login-password')?.value||'';
+        try{
+          await window.AuthUI.login(email, pass);
+          toast('登录成功','ok');
+          location.reload();
+        }catch(ex){ err(ex); toast(ex.message||'登录失败','err'); }
+      });
+    }
+    const reg = document.getElementById('register-form');
+    if (reg){
+      reg.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const email = reg.querySelector('#register-email')?.value?.trim()||'';
+        const pass  = reg.querySelector('#register-password')?.value||'';
+        try{
+          await window.AuthUI.register(email, pass);
+          toast('注册成功，请查收验证邮件','ok');
+        }catch(ex){ err(ex); toast(ex.message||'注册失败','err'); }
+      });
+    }
+    const forgot = document.getElementById('forgot-form');
+    if (forgot){
+      forgot.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const email = forgot.querySelector('#forgot-email')?.value?.trim()||'';
+        try{
+          await window.AuthUI.reset(email);
+          toast('找回邮件已发送','ok');
+        }catch(ex){ err(ex); toast(ex.message||'发送失败','err'); }
+      });
+    }
+    const btnLogout = document.getElementById('btn-logout');
+    if (btnLogout){
+      btnLogout.addEventListener('click', async ()=>{ await window.AuthUI.logout(); location.reload(); });
+    }
+  });
+
+  // ---------- Trades API（保持不变） ----------
   function renderTable(rows){
     const table = document.getElementById('tx-table');
-    if(!table) return;
-    if(!table.tHead){
+    if (!table) return;
+    if (!table.tHead){
       const thead = table.createTHead();
       const tr = thead.insertRow();
       ['时间','币种','方向','数量','价格','手续费','备注',''].forEach((h,i)=>{
-        const th=document.createElement('th');
-        th.textContent=h;
-        if(i===3||i===4) th.className='num';
+        const th=document.createElement('th'); th.textContent=h;
+        if (i===3||i===4) th.className='num';
         tr.appendChild(th);
       });
     }
     let tbody = table.tBodies[0]; if(!tbody) tbody = table.createTBody();
     tbody.innerHTML='';
-    (rows||[]).forEach(r=>{
+    rows.forEach(r=>{
       const tr=document.createElement('tr');
-      const cells=[ new Date(r.ts).toLocaleString(), r.symbol||'', r.side||'',
-                    String(r.qty??''), String(r.price??''), String(r.fee??''), r.note||'' ];
+      const cells=[new Date(r.ts).toLocaleString(), r.symbol||'', r.side||'',
+        String(r.qty??''), String(r.price??''), String(r.fee??''), r.note||''];
       cells.forEach((c,i)=>{ const td=document.createElement('td'); td.textContent=c; if(i===3||i===4) td.className='num'; tr.appendChild(td); });
-      const tdOp=document.createElement('td');
-      const btn=document.createElement('button'); btn.textContent='删除';
-      btn.addEventListener('click', async()=>{ try{ await TradesAPI.deleteTrade(r.id); toast('已删除','ok'); await TradesAPI.loadTrades(); }catch(e){ err(e); toast('删除失败','err'); } });
-      tdOp.appendChild(btn); tr.appendChild(tdOp); tbody.appendChild(tr);
+      const op=document.createElement('td'); const b=document.createElement('button'); b.textContent='删除';
+      b.onclick=async ()=>{ await TradesAPI.deleteTrade(r.id).then(()=>TradesAPI.loadTrades()); };
+      op.appendChild(b); tr.appendChild(op); tbody.appendChild(tr);
     });
   }
 
-  const TradesAPI = {
+  async function needUser(){ const {data, error:e}=await SB.auth.getUser(); if(e) throw e; return data.user||null; }
+
+  window.TradesAPI = {
     async loadTrades(){
-      const {data:u} = await SB.auth.getUser(); if(!u.user){ toast('请先登录','err'); setGate(null); return []; }
-      const { data, error:e } = await SB.from('trades').select('*').order('ts', {ascending:false});
-      if(e){ err(e); toast('加载失败','err'); return []; }
-      renderTable(data||[]); setGate(u.user); return data||[];
+      const u = await needUser(); if(!u){ toast('请先登录','err'); return []; }
+      const { data, error:e } = await SB.from('trades').select('*').order('ts',{ascending:false});
+      if (e){ err(e); toast('加载失败','err'); return []; }
+      renderTable(data||[]); return data||[];
     },
-    async saveTrade(payload){
-      const {data:u} = await SB.auth.getUser(); if(!u.user) throw new Error('未登录');
-      const row={ user_id:u.user.id, ts: payload.ts ? new Date(payload.ts).toISOString() : new Date().toISOString(),
-        symbol:payload.symbol||'', side:payload.side||'buy', qty:Number(payload.qty||0), price:Number(payload.price||0),
-        fee:Number(payload.fee||0), note:payload.note||'' };
-      const {error:e}=await SB.from('trades').insert(row);
-      if(e) throw e; toast('已保存','ok');
+    async saveTrade(p){
+      const u = await needUser(); if(!u) throw new Error('未登录');
+      const row = { user_id:u.id, ts:p.ts?new Date(p.ts).toISOString():new Date().toISOString(),
+        symbol:p.symbol||'', side:p.side||'buy', qty:+(p.qty||0), price:+(p.price||0), fee:+(p.fee||0), note:p.note||'' };
+      const { error:e } = await SB.from('trades').insert(row); if(e) throw e; toast('已保存','ok');
     },
     async deleteTrade(id){
-      const {data:u} = await SB.auth.getUser(); if(!u.user) throw new Error('未登录');
-      const {error:e}=await SB.from('trades').delete().eq('id', id);
-      if(e) throw e;
+      const u = await needUser(); if(!u) throw new Error('未登录');
+      const { error:e } = await SB.from('trades').delete().eq('id', id); if(e) throw e; toast('已删除','ok');
     }
   };
-  window.TradesAPI = TradesAPI;
 
-  // ---- Bind forms if present ----
-  document.addEventListener('DOMContentLoaded', async ()=>{
-    // gate on load
-    const u = (await SB.auth.getUser()).data.user; setGate(u);
-
-    const loginForm = document.getElementById('login-form');
-    if(loginForm){
-      log('hook login-form');
-      loginForm.addEventListener('submit', async (e)=>{
-        e.preventDefault();
-        const email = (loginForm.querySelector('#login-email')||{}).value || '';
-        const pass  = (loginForm.querySelector('#login-password')||{}).value || '';
-        try{ await AuthUI.signIn(email, pass); setGate((await SB.auth.getUser()).data.user); await TradesAPI.loadTrades(); }
-        catch(e){ err(e); }
-      });
-    }
-    const regForm = document.getElementById('register-form');
-    if(regForm){
-      log('hook register-form');
-      regForm.addEventListener('submit', async(e)=>{
-        e.preventDefault();
-        const email=(regForm.querySelector('#register-email')||{}).value||'';
-        const pass=(regForm.querySelector('#register-password')||{}).value||'';
-        try{ await AuthUI.signUp(email, pass); } catch(e){ err(e); }
-      });
-    }
-    const forgotForm = document.getElementById('forgot-form');
-    if(forgotForm){
-      log('hook forgot-form');
-      forgotForm.addEventListener('submit', async(e)=>{
-        e.preventDefault();
-        const email=(forgotForm.querySelector('#forgot-email')||{}).value||'';
-        try{ await AuthUI.resetPassword(email); } catch(e){ err(e); }
-      });
-    }
-    const logoutBtn = document.getElementById('btn-logout');
-    if(logoutBtn){
-      logoutBtn.addEventListener('click', async()=>{ try{ await AuthUI.signOut(); setGate(null); }catch(e){ err(e); } });
-    }
-    // trades form
-    const form = document.getElementById('tx-form');
-    if(form){
-      form.addEventListener('submit', async(e)=>{
-        e.preventDefault();
-        const v = id => (form.querySelector('#'+id)||{}).value || '';
-        const payload = { ts:v('tx-ts'), symbol:v('tx-symbol'), side:v('tx-side'),
-                          qty:v('tx-qty'), price:v('tx-price'), fee:v('tx-fee'), note:v('tx-note') };
-        try{ await TradesAPI.saveTrade(payload); await TradesAPI.loadTrades(); form.reset(); }
-        catch(e){ err(e); toast('保存失败','err'); }
-      });
-    }
-    // auto load
-    if(document.getElementById('tx-table')){ TradesAPI.loadTrades().catch(err); }
-
-    // auth state change
-    SB.auth.onAuthStateChange((_evt, session)=>{
-      setGate(session?.user||null);
-      if(session?.user) TradesAPI.loadTrades().catch(()=>{});
-    });
-
-    log('INIT OK: Auth + Trades wired.');
+  document.addEventListener('DOMContentLoaded', ()=>{
+    if (document.getElementById('tx-table')) { window.TradesAPI.loadTrades().catch(err); }
   });
+
+  log('Hotfix ready');
 })();
