@@ -1,35 +1,19 @@
-/* Aurora Night base (unchanged parts omitted for brevity) */
-/* ... your existing Aurora Night rules ... */
 
-/* === Captcha Visibility & Layout Fix (Step1a) === */
-.captcha-wrap{
-  margin-top:12px;
-  padding:10px 12px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid rgba(255,255,255,.06);
-  border-radius: 12px;
-  min-height: 84px;            /* keep space before render */
-  display: flex;               /* center the widget */
-  align-items: center;
-  justify-content: center;
-}
-
-/* ensure the hCaptcha container always reserves space */
-.h-captcha{ min-height: 64px; display:block; }
-.h-captcha iframe{
-  opacity:1 !important;
-  visibility:visible !important;
-}
-
-/* avoid ancestor overflow clipping the widget popover */
-.auth-card, .card, #panel-journal, #panel-security{
-  overflow: visible;  /* was possibly hidden in Step1 */
-}
-
-/* make sure hidden utility only hides intentional panels, not descendants unexpectedly */
-.hidden { display: none !important; }
-
-/* touch target around captcha on mobile */
-@media (max-width: 780px){
-  .captcha-wrap{ padding: 12px; min-height: 92px; }
-}
+:root{--bg:#0b0f14;--fg:#e6edf3;--muted:#9aa4b2;--card:#121822;--acc:#4caf50;--warn:#e0a800}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--fg)}
+.header,.footer,.wrap{max-width:1100px;margin:0 auto}
+.card{background:var(--card);padding:16px;border-radius:10px;margin:12px auto}
+.banner{margin:12px auto;padding:10px 12px;border-radius:8px;background:#122;color:#9fd}
+.warn{background:#2a210a;color:#ffd86b;border:1px solid #5a4a10;padding:10px;border-radius:8px;margin:10px 0}
+.row{display:flex;align-items:center}.between{justify-content:space-between}.gap{gap:8px}
+.grid{display:grid;gap:10px}.grid-2{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(3,1fr)}.span-3{grid-column:1/span 3}
+label{display:flex;flex-direction:column;font-size:14px;gap:6px}
+input,select,textarea,button{padding:10px;border:1px solid #263043;border-radius:8px;background:#0f1520;color:var(--fg)}
+.primary{background:var(--acc);border:none;cursor:pointer}.ghost{background:transparent;border:1px solid #263043;cursor:pointer}
+.hidden{display:none}
+.muted{color:var(--muted)}.small{font-size:12px}
+.tab{background:transparent;border:1px solid #263043;padding:6px 10px;border-radius:8px;cursor:pointer}
+.tab.active{background:#1a2230}
+.tabpane{display:none}.tabpane.show{display:block}
+.table-wrap{overflow:auto}
